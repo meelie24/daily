@@ -247,7 +247,13 @@ details .inner{padding:0 2px 14px;font-size:.86rem;color:#A8ADBC;line-height:1.5
   border-radius:24px 24px 0 0;max-height:76vh;overflow-y:auto;transform:translateY(105%);transition:transform .3s cubic-bezier(.22,1,.36,1);
   padding:10px 18px calc(22px + env(safe-area-inset-bottom));max-width:520px;margin:0 auto}
 #sheet.show{transform:none}
+#sheet{overscroll-behavior:contain;touch-action:pan-y}
+.sheet-head{position:sticky;top:0;background:#171922;padding:2px 0 12px;z-index:4;margin-bottom:4px;border-bottom:1px solid var(--line)}
+.qbadge{min-width:30px;text-align:center;font-weight:800;color:var(--volt);font-size:.84rem}
+@keyframes popin{0%{transform:scale(.5)}60%{transform:scale(1.3)}100%{transform:scale(1)}}
+.pop{animation:popin .28s cubic-bezier(.34,1.56,.64,1)}
 #sheet .grab{width:42px;height:4px;background:var(--line);border-radius:3px;margin:6px auto 14px}
+.sheet-x{position:sticky;top:0;float:right;background:var(--volt);color:#10130A;font-weight:800;font-size:.8rem;border-radius:999px;padding:8px 16px;margin:-6px 0 8px;z-index:5;box-shadow:0 0 14px rgba(200,245,66,.3)}
 .sheet-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
 .sheet-h h3{font-family:'Unbounded';font-size:1rem;font-weight:800}
 .sheet-h .tot{font-weight:800;color:var(--volt);font-size:.9rem}
@@ -315,6 +321,7 @@ function cycleInfo(){
   return{pre:false,cd,week,next,daysToNext};
 }
 const fmt=d=>d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'});
+window.cachedCount=()=>{try{const v=+localStorage.getItem('gc-count');return v>=10?v.toLocaleString():null;}catch(e){return null;}};
 const timeFmt=t=>{if(!t)return'';const[h,m]=t.split(':');const hr=+h%12||12;return hr+':'+m+(+h>=12?' PM':' AM');};
 
 function streak(){
@@ -385,7 +392,13 @@ const LIBRARY=[
 ['Oikos Pro yogurt',20],['Chobani High Protein',20],['Plain Greek yogurt',18],
 ['Tuna packet',17],['Salmon / shrimp serving',26],['Turkey roll-ups',20],
 ['Jerky / meat stick',15],['Edamame, 1 cup',17],['Protein powder scoop',22],['Protein bar (backup)',20],
-['Chicken soup w/ rotisserie',25],['Protein smoothie',45]];
+['Chicken soup w/ rotisserie',25],['Protein smoothie',45],
+['2 large eggs',12],['3 large eggs',18],['Egg whites, 1 cup',26],['Hard-boiled egg',6],
+['Cottage cheese, 1 cup',25],['Chicken breast, 6 oz',50],['Ground beef, 4 oz',28],
+['Ground turkey, 4 oz',22],['Steak, 6 oz',42],['Pork chop',35],['Burger patty, 1/4 lb',20],
+['White fish (tilapia/cod), 6 oz',35],['Deli ham/turkey, 3 oz',15],['Bacon, 3 slices',10],
+['Sausage links, 2',10],['Tofu, half block',20],['Black beans, 1 cup',15],['Lentils, 1 cup',18],
+['String cheese',7],['Cheese, 1 oz',7],['Milk, 1 cup',8],['Fairlife milk, 1 cup',13],['Peanut butter, 2 tbsp',7]];
 
 const FORMULAS=[
 ['Easy workday \u2248 97g','Fairlife Elite (42) + grilled chicken salad (35) + Oikos Pro (20)'],
@@ -471,8 +484,27 @@ function render(toTop){
   view.innerHTML=`<div class="fade">${({today:rToday,food:rFood,shot:rShot,me:rMe})[tab]()}</div>`;
   requestAnimationFrame(()=>window.scrollTo(0,toTop?0:y));
 }
-function openSheet(html){document.getElementById('sheet').innerHTML='<div class="grab"></div>'+html;document.getElementById('sheet').classList.add('show');document.getElementById('scrim').classList.add('show');}
-window.closeSheet=()=>{document.getElementById('sheet').classList.remove('show');document.getElementById('scrim').classList.remove('show');};
+let _lockY=0;
+function lockScroll(){_lockY=window.scrollY||0;const b=document.body;b.style.position='fixed';b.style.top=(-_lockY)+'px';b.style.left='0';b.style.right='0';b.style.width='100%';}
+function unlockScroll(){const b=document.body;b.style.position='';b.style.top='';b.style.left='';b.style.right='';b.style.width='';window.scrollTo(0,_lockY);}
+function openSheet(html){
+  const sh=document.getElementById('sheet');
+  const wasOpen=sh.classList.contains('show');
+  sh.innerHTML='<div class="grab"></div><button class="sheet-x" onclick="closeSheet()">Done</button>'+html;
+  if(!wasOpen){lockScroll();sh.classList.add('show');document.getElementById('scrim').classList.add('show');}
+  sh.scrollTop=0;
+}
+window.closeSheet=()=>{
+  const sh=document.getElementById('sheet');
+  if(sh.classList.contains('show'))unlockScroll();
+  sh.classList.remove('show');document.getElementById('scrim').classList.remove('show');
+};
+/* swipe down from the top of the sheet to close */
+(function(){
+  const sh=document.getElementById('sheet');let sy=null;
+  sh.addEventListener('touchstart',e=>{sy=sh.scrollTop<=0?e.touches[0].clientY:null;},{passive:true});
+  sh.addEventListener('touchmove',e=>{if(sy!=null&&e.touches[0].clientY-sy>90){sy=null;closeSheet();}},{passive:true});
+})();
 
 /* confetti */
 function confetti(){
@@ -529,7 +561,8 @@ function rToday(){
   const ci=cycleInfo();
   const sk=streak();
   const top=`<div class="topbar"><span class="d">${new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})}</span>
-    <span class="streak">${FLAME}${sk} day${sk===1?'':'s'}</span></div>`;
+    <span class="streak">${FLAME}${sk} day${sk===1?'':'s'}</span></div>
+  ${cachedCount()?`<div style="display:flex;justify-content:center;margin:-4px 0 10px"><span style="display:inline-flex;align-items:center;gap:7px;background:var(--card);border:1px solid #39481D;border-radius:999px;padding:6px 14px;font-size:.74rem;font-weight:800;letter-spacing:.08em;color:var(--volt)">\u26A1 <span class="userCount">${cachedCount()}</span> PEOPLE ON THIS JOURNEY</span></div>`:''}`;
   if(!ci)return top+rSetup();
   if(ci.pre)return top+rPre(ci);
   const plan=DAYS[ci.cd-1],d=day();
@@ -598,34 +631,59 @@ window.setField=(k,v)=>{day()[k]=v;save();};
 
 /* plate actions */
 window.addPlate=(name,g)=>{
-  const d=day();const ex=d.plate.find(p=>p.name===name&&!p.eaten);
-  if(ex)ex.qty++;else d.plate.push({name,g,qty:1,eaten:false});
+  const d=day();const was=eatenG(d);
+  const ex=d.plate.find(p=>p.name===name&&p.eaten);
+  if(ex)ex.qty++;else d.plate.push({name,g,qty:1,eaten:true});
   save();render();
+  const goal=S.settings.proteinGoal||100;
+  if(was<goal&&eatenG(d)>=goal)confetti();
 };
-window.qty=(i,n)=>{const d=day();const p=d.plate[i];if(!p)return;p.qty+=n;
-  if(p.qty<=0)d.plate.splice(i,1);save();render();};
+window.qty=(i,n)=>{const d=day();const p=d.plate[i];if(!p)return;const was=eatenG(d);p.qty+=n;
+  if(p.qty<=0)d.plate.splice(i,1);save();render();
+  const goal=S.settings.proteinGoal||100;if(was<goal&&eatenG(d)>=goal)confetti();};
 window.eat=i=>{const d=day();const p=d.plate[i];if(!p)return;
   const was=eatenG(d);p.eaten=!p.eaten;save();render();
   const goal=S.settings.proteinGoal||100;
   if(p.eaten&&was<goal&&eatenG(d)>=goal)confetti();};
+const jsq=v=>String(v).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+const qtyOf=name=>day().plate.filter(p=>p.name===name).reduce((t,p)=>t+p.qty,0);
+function sheetRow(name,g,custom,idx){
+  const q=qtyOf(name);
+  return `<div class="prow"><div><div class="nm">${esc(name)}</div><div class="gg">about ${g}g protein</div></div>
+    <div style="display:flex;align-items:center;gap:6px">
+      ${custom?`<button class="del" onclick="delCustom(${idx})">\u2715</button>`:''}
+      <span class="qbadge">${q?'\u00D7'+q:''}</span>
+      <button class="padd" onclick="sheetAdd(this,'${jsq(name)}',${g})">+ ${g}g</button>
+    </div></div>`;
+}
 window.foodSheet=()=>{
-  const d=day();
   if(!S.customFoods)S.customFoods=[];
-  openSheet(`<div class="sheet-h"><h3>Add to plate</h3><span class="tot">${eatenG(d)} / ${S.settings.proteinGoal}g eaten</span></div>
-   <p style="font-size:.78rem;color:var(--dim);margin-bottom:10px">Tap + to put it on today\u2019s plate. Adjust or remove from the plate with \u2212 / +.</p>
+  const d=day(),goal=S.settings.proteinGoal||100,tot=eatenG(d);
+  openSheet(`
+   <div class="sheet-head">
+     <div class="sheet-h"><h3>Add food</h3><span class="tot"><span id="shTot">${tot}</span> / ${goal}g</span></div>
+     <div class="pbar" style="margin-top:10px"><i id="shBar" style="width:${Math.min(100,tot/goal*100)}%"></i></div>
+   </div>
+   <p style="font-size:.78rem;color:var(--dim);margin:8px 0 10px">Tap + and it counts instantly \u2014 watch the bar. Adjust amounts later on your plate.</p>
    <div style="display:flex;gap:8px;margin-bottom:6px">
-     <input type="text" id="cfName" placeholder="Your own food (eggs, anything)" style="flex:1;min-width:0">
+     <input type="text" id="cfName" placeholder="Your own food (anything)" style="flex:1;min-width:0">
      <input type="number" id="cfG" inputmode="numeric" placeholder="g" style="width:74px;flex:0 0 74px">
      <button class="padd" onclick="addCustom()">Save</button>
    </div>
    <p style="font-size:.72rem;color:var(--dim);margin-bottom:4px">Saved foods stay in this list for next time.</p>
    ${S.customFoods.length?`<div style="font-size:.7rem;font-weight:800;letter-spacing:.12em;color:var(--volt);margin:10px 0 2px">MY FOODS</div>`:''}
-   ${S.customFoods.map((p,i)=>`<div class="prow"><div><div class="nm">${esc(p.name)}</div><div class="gg">about ${p.g}g protein</div></div>
-     <div style="display:flex;gap:8px;align-items:center"><button class="del" onclick="delCustom(${i})">\u2715</button>
-     <button class="padd" onclick="addPlate('${String(p.name).replace(/'/g,"\\'")}',${p.g});foodSheet()">+ ${p.g}g</button></div></div>`).join('')}
+   ${S.customFoods.map((p,i)=>sheetRow(p.name,p.g,true,i)).join('')}
    <div style="font-size:.7rem;font-weight:800;letter-spacing:.12em;color:var(--dim);margin:14px 0 2px">SUGGESTIONS</div>
-   ${LIBRARY.map(p=>`<div class="prow"><div><div class="nm">${p[0]}</div><div class="gg">about ${p[1]}g protein</div></div>
-     <button class="padd" onclick="addPlate('${p[0].replace(/'/g,"\\'")}',${p[1]});foodSheet()">+ ${p[1]}g</button></div>`).join('')}`);
+   ${LIBRARY.map(p=>sheetRow(p[0],p[1],false)).join('')}`);
+};
+window.sheetAdd=(btn,name,g)=>{
+  addPlate(name,g); /* state + page behind + goal confetti */
+  const d=day(),goal=S.settings.proteinGoal||100,tot=eatenG(d);
+  const t=document.getElementById('shTot');if(t)t.textContent=tot;
+  const bar=document.getElementById('shBar');if(bar)bar.style.width=Math.min(100,tot/goal*100)+'%';
+  const b=btn.parentNode.querySelector('.qbadge');
+  if(b){b.textContent='\u00D7'+qtyOf(name);b.classList.remove('pop');void b.offsetWidth;b.classList.add('pop');}
+  btn.classList.remove('pop');void btn.offsetWidth;btn.classList.add('pop');
 };
 window.addCustom=()=>{
   const n=document.getElementById('cfName'),g=document.getElementById('cfG');
@@ -634,7 +692,7 @@ window.addCustom=()=>{
   if(!S.customFoods)S.customFoods=[];
   S.customFoods.unshift({name,g:grams});
   addPlate(name,grams);
-  foodSheet();
+  foodSheet(); /* one rebuild after a form submit is fine */
 };
 window.delCustom=i=>{S.customFoods.splice(i,1);save();foodSheet();render();};
 
@@ -656,7 +714,7 @@ window.quickSetup=()=>{const v=document.getElementById('suDate').value;if(!v)ret
   S.settings.dose=document.getElementById('suDose').value;save();confetti();render(true);};
 function rPre(ci){
   return `<div class="dayblock"><div class="big xl">T\u2212${ci.startsIn}</div>
-  <div class="nm">First shot ${fmt(new Date(S.settings.firstShot+'T00:00:00'))}</div>
+  <div class="nm">${S.sites.length?'Next shot':'First shot'} ${fmt(new Date(S.settings.firstShot+'T00:00:00'))}</div>
   <div class="sb">Stock up now so week one runs itself.</div></div>
   <div class="hype"><span class="upnext-l">Before day one</span>
    <div class="upnext-t">Run the grocery list</div>
@@ -721,7 +779,7 @@ function rShot(){
   if(last){const idx=SITES.findIndex(s=>s.id===last.siteId);sugId=SITES[(idx+1)%SITES.length].id;}
   const flat=PHASES.flatMap(p=>p[1]);
   const done=flat.filter((_,i)=>d.shotSteps['s'+i]).length;
-  const status=!ci?'Set your first shot date in Me':ci.pre?`First shot ${fmt(new Date(S.settings.firstShot+'T00:00:00'))}`
+  const status=!ci?'Set your first shot date in Me':ci.pre?`${S.sites.length?'Next shot':'First shot'} ${fmt(new Date(S.settings.firstShot+'T00:00:00'))}`
     :ci.cd===1?`tonight${S.settings.shotTime?' \u00B7 '+timeFmt(S.settings.shotTime):''}`
     :ci.cd===7?'tomorrow night':`in ${ci.daysToNext} days \u00B7 ${fmt(ci.next)}`;
   let n=0;
@@ -840,6 +898,7 @@ function rMe(){
 
   <div class="sec-h"><h2>Support this app</h2></div>
   <div class="card" style="margin-bottom:0;background:linear-gradient(160deg,#1A1A0E,#14161D);border-color:#3A3D1A">
+    ${cachedCount()?`<div style="font-size:.74rem;font-weight:800;letter-spacing:.12em;color:var(--volt);margin-bottom:8px">\u26A1 <span class="userCount">${cachedCount()}</span> PEOPLE ON THIS JOURNEY</div>`:``}
     <p style="font-size:.88rem;color:#B8C890;line-height:1.5">This app is completely free. If it\u2019s helped you stay on track, a tip means a lot and keeps it going.</p>
     <a href="https://paypal.me/JameelMajor" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:var(--volt);color:#10130A;border-radius:16px;padding:15px;font-size:.98rem;font-weight:700;margin-top:14px;text-decoration:none;box-shadow:0 0 22px rgba(200,245,66,.25)">
       &#9749; Buy me a protein shake
@@ -852,12 +911,50 @@ function rMe(){
   </div>`;
 }
 window.setW=(k,v)=>{const ci=cycleInfo();if(!ci||ci.pre)return;(S.weekly['w'+ci.week]=S.weekly['w'+ci.week]||{})[k]=v;save();};
-window.setS=(k,v)=>{S.settings[k]=v;save();render(false);};
+window.setS=(k,v)=>{S.settings[k]=v;save();};
 window.exportData=()=>{const b=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='companion-backup-'+todayISO()+'.json';a.click();URL.revokeObjectURL(a.href);};
 window.importData=inp=>{const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const dd=JSON.parse(r.result);if(!dd.settings)throw 0;localStorage.setItem(KEY,JSON.stringify(dd));S=load();save();render(true);}catch(e){alert('That file doesn\u2019t look like a companion backup.');}};r.readAsText(f);inp.value='';};
 window.resetAll=()=>{if(confirm('Erase everything? Export a backup first if you want to keep it.')){S=blank();save();render(true);}};
 
 render(true);
+
+/* ============ TIP PROMPT ============ */
+window.tipPrompt=()=>{
+  try{
+    if(localStorage.getItem('gc-tip-shown'))return;
+    localStorage.setItem('gc-tip-shown','1');
+  }catch(e){}
+  openSheet(`<div style="text-align:center;padding:8px 4px 4px">
+    <div style="font-size:2rem">\u26A1</div>
+    <h3 class="xl" style="font-size:1.05rem;font-weight:800;margin-top:8px">This app is free, always</h3>
+    <p style="font-size:.86rem;color:var(--dim);margin-top:8px;line-height:1.5">No ads, no account, your data stays on your phone. If it helps you stay on track, a small tip keeps it alive.</p>
+    <a href="https://paypal.me/JameelMajor" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:9px;background:var(--volt);color:#10130A;border-radius:16px;padding:14px;font-weight:700;margin-top:16px;text-decoration:none;box-shadow:0 0 22px rgba(200,245,66,.25)">\u2615 Buy me a protein shake</a>
+    <button class="btn ghost" style="margin-top:10px" onclick="closeSheet()">Maybe later</button>
+  </div>`);
+};
+setTimeout(()=>window.tipPrompt(),10000);
+
+/* ============ INSTALL COUNTER ============ */
+(function(){
+  const NS='glp1-companion-jm24',K='installs';
+  const BASE='https://abacus.jasoncameron.dev';
+  async function count(){
+    try{
+      const first=!localStorage.getItem('gc-counted');
+      const url=first?`${BASE}/hit/${NS}/${K}`:`${BASE}/get/${NS}/${K}`;
+      const r=await fetch(url);
+      if(!r.ok)return;
+      const j=await r.json();
+      if(typeof j.value==='number'){
+        localStorage.setItem('gc-counted','1');
+        localStorage.setItem('gc-count',String(j.value));
+        document.querySelectorAll('.userCount').forEach(el=>el.textContent=j.value.toLocaleString());
+      }
+    }catch(e){/* offline or service down: stay silent */}
+  }
+  count();
+})();
+
 </script>
 </body>
 </html>
