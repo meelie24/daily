@@ -6,8 +6,8 @@
 <meta name="theme-color" content="#0B0C10">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Companion">
-<title>Meelie's Daily Companion</title>
+<meta name="apple-mobile-web-app-title" content="GLP-1 Companion">
+<title>GLP-1 Companion</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -281,7 +281,7 @@ nav button.on svg{filter:drop-shadow(0 0 7px rgba(200,245,66,.6))}
 <script>
 /* ============ DATA ============ */
 const KEY='meelie-companion-v1';
-const blank=()=>({settings:{firstShot:'',shotTime:'21:00',dose:'',units:'',proteinGoal:100,waterGoal:7},days:{},weekly:{},sites:[],grocery:{}});
+const blank=()=>({settings:{firstShot:'',shotTime:'21:00',dose:'',units:'',proteinGoal:100,waterGoal:7},days:{},weekly:{},sites:[],grocery:{},customFoods:[]});
 let S=load();
 function load(){
   try{
@@ -610,11 +610,33 @@ window.eat=i=>{const d=day();const p=d.plate[i];if(!p)return;
   if(p.eaten&&was<goal&&eatenG(d)>=goal)confetti();};
 window.foodSheet=()=>{
   const d=day();
+  if(!S.customFoods)S.customFoods=[];
   openSheet(`<div class="sheet-h"><h3>Add to plate</h3><span class="tot">${eatenG(d)} / ${S.settings.proteinGoal}g eaten</span></div>
-   <p style="font-size:.78rem;color:var(--dim);margin-bottom:4px">Tap + to put it on today\u2019s plate. Adjust or remove from the plate with \u2212 / +.</p>
+   <p style="font-size:.78rem;color:var(--dim);margin-bottom:10px">Tap + to put it on today\u2019s plate. Adjust or remove from the plate with \u2212 / +.</p>
+   <div style="display:flex;gap:8px;margin-bottom:6px">
+     <input type="text" id="cfName" placeholder="Your own food (eggs, anything)" style="flex:1;min-width:0">
+     <input type="number" id="cfG" inputmode="numeric" placeholder="g" style="width:74px;flex:0 0 74px">
+     <button class="padd" onclick="addCustom()">Save</button>
+   </div>
+   <p style="font-size:.72rem;color:var(--dim);margin-bottom:4px">Saved foods stay in this list for next time.</p>
+   ${S.customFoods.length?`<div style="font-size:.7rem;font-weight:800;letter-spacing:.12em;color:var(--volt);margin:10px 0 2px">MY FOODS</div>`:''}
+   ${S.customFoods.map((p,i)=>`<div class="prow"><div><div class="nm">${esc(p.name)}</div><div class="gg">about ${p.g}g protein</div></div>
+     <div style="display:flex;gap:8px;align-items:center"><button class="del" onclick="delCustom(${i})">\u2715</button>
+     <button class="padd" onclick="addPlate('${String(p.name).replace(/'/g,"\\'")}',${p.g});foodSheet()">+ ${p.g}g</button></div></div>`).join('')}
+   <div style="font-size:.7rem;font-weight:800;letter-spacing:.12em;color:var(--dim);margin:14px 0 2px">SUGGESTIONS</div>
    ${LIBRARY.map(p=>`<div class="prow"><div><div class="nm">${p[0]}</div><div class="gg">about ${p[1]}g protein</div></div>
      <button class="padd" onclick="addPlate('${p[0].replace(/'/g,"\\'")}',${p[1]});foodSheet()">+ ${p[1]}g</button></div>`).join('')}`);
 };
+window.addCustom=()=>{
+  const n=document.getElementById('cfName'),g=document.getElementById('cfG');
+  const name=(n.value||'').trim(),grams=Math.max(0,Math.round(+g.value||0));
+  if(!name){n.focus();return;}
+  if(!S.customFoods)S.customFoods=[];
+  S.customFoods.unshift({name,g:grams});
+  addPlate(name,grams);
+  foodSheet();
+};
+window.delCustom=i=>{S.customFoods.splice(i,1);save();foodSheet();render();};
 
 function rSetup(){
   return `<div class="dayblock"><div class="big xl" style="font-size:1.9rem">ONE DATE.<br>THAT\u2019S IT.</div>
@@ -816,7 +838,15 @@ function rMe(){
     <button class="btn danger" onclick="resetAll()">Erase everything</button>
   </div>
 
-  <div class="card" style="margin-bottom:6px">
+  <div class="sec-h"><h2>Support this app</h2></div>
+  <div class="card" style="margin-bottom:0;background:linear-gradient(160deg,#1A1A0E,#14161D);border-color:#3A3D1A">
+    <p style="font-size:.88rem;color:#B8C890;line-height:1.5">This app is completely free. If it\u2019s helped you stay on track, a tip means a lot and keeps it going.</p>
+    <a href="https://paypal.me/JameelMajor" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:var(--volt);color:#10130A;border-radius:16px;padding:15px;font-size:.98rem;font-weight:700;margin-top:14px;text-decoration:none;box-shadow:0 0 22px rgba(200,245,66,.25)">
+      &#9749; Buy me a protein shake
+    </a>
+  </div>
+
+  <div class="card" style="margin-bottom:6px;margin-top:14px">
     <b style="font-size:.9rem">Put it on your home screen</b>
     <p style="font-size:.83rem;color:var(--dim);margin-top:4px">iPhone: Safari \u2192 Share \u2192 Add to Home Screen. Android: Chrome menu \u2192 Add to Home screen. Opens like an app from then on.</p>
   </div>`;
