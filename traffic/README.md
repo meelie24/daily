@@ -99,6 +99,45 @@ Three deliberate departures, all for legibility or safety:
 
 Touch targets are ≥44px throughout, including the mono-labelled tab bar.
 
+## Hardening pass
+
+A five-dimension audit (security, safety, UX, network, a11y/perf) with adversarial
+verification of the high-severity findings drove a round of fixes:
+
+- **Critical XSS closed.** A hostile peer id could break out of the Mute button's
+  inline handler and run code that read your *precise* location. `esc()` now
+  escapes the apostrophe, and the Mute button is a delegated `data-id` handler, so
+  wire data never reaches an executable context at all.
+- **Radius bypass closed.** A peer sending zero/absent coordinates used to skip the
+  distance gate and appear as local traffic anywhere. Unlocatable peers are now
+  dropped in public mode.
+- **Flood defence.** The peer set is capped, ids are length-bounded, heartbeats are
+  de-duplicated, oversized frames are rejected, and repaints are coalesced to one
+  per frame — so a hostile broker flood can't freeze the tab.
+- **Dead-socket detection.** The client now tracks last-received bytes and tears
+  down a silently half-open socket (tunnel, dead zone, IP change) instead of
+  showing "connected" into a void. Plus a CONNACK timeout, backoff that survives
+  broker rotation, and reconnect-on-foreground.
+- **Driving surface, per the safety brief.** No unread badge or ping while moving;
+  the read card truncates and updates at most once every 5s so a burst can't strobe
+  it; hazard tiles are a fixed grid (no scrolling for all of them); a one-tap
+  **Quiet** control silences everything; a stationary new user sees "Finding you…"
+  instead of "You're moving."
+- **Accessibility.** Pinch-zoom unblocked, real button + aria-label on the status
+  chip and send button, `role="switch"` on toggles, `aria-pressed`/`aria-current`
+  on chips and nav, a live-region toast, a screen-reader announcer for incoming
+  messages, focus outlines, and 44px touch targets. Information-bearing muted text
+  moved above the 4.5:1 contrast floor.
+- **Also:** message timestamps, GPS-denied retry, location priming before the
+  permission prompt, a home-screen icon + no more phantom PWA claim, GPS watch
+  paused while backgrounded, and no peer-list wipe on GPS jitter.
+
+Deliberately **not** changed (product calls, not defects): free typing stays
+allowed when stopped (canned-only would be safer but isn't what this is);
+`Cops ahead` ships without jurisdiction gating; there's no server, so no
+cross-session bans or content ML. A hands-free TTS "listen" mode is the main thing
+still worth building.
+
 ## Testing it
 
 It needs two devices; it will not invent traffic that isn't there.
