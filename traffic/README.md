@@ -71,6 +71,34 @@ Rate limits and mute are client-side, so they're friction for normal use, not
 security. With rotating handles a mute can't follow someone across drives — the
 direct cost of nobody being able to target you either.
 
+## Design — "Obsidian & Lime"
+
+Dark-mode-first glassmorphism, adapted from a web design system to a phone:
+
+- **Obsidian base** (`#000` viewport, `#0c0c0c` surfaces) with a single neon lime
+  accent (`#ccff00`) and emerald (`#10b981`) for de-escalating actions only.
+- **Space Grotesk** headings at `-0.06em` tracking with an italic lime-to-white
+  gradient span; **JetBrains Mono** for every technical label, uppercase and
+  tracked out to `0.2em`.
+- **Glass** is `rgba(255,255,255,.03)` over a 16px backdrop blur with a 1px
+  white/10 hairline. Corners are ≥2rem everywhere.
+- A 60px architectural grid, a grain veil, and two blurred glow spheres keep the
+  dark from going flat.
+- **Floating shell**: content rides in a rounded 2.5rem panel above the black
+  viewport, and the composer + tab bar float together as one glass slab.
+
+Three deliberate departures, all for legibility or safety:
+
+- **The driving surface is not glass.** While you're moving, the message panel
+  and the locked notice render solid black with pure-white type at 1.7rem. Blur
+  and 60%-opacity text are fine when parked and wrong at 30mph.
+- **The grain is a plain veil, not `mix-blend-mode: overlay`.** Overlay drags
+  saturated accents toward mid-grey and the lime has to stay exact.
+- **Swatch labels pick their own ink** by relative luminance (crossover at
+  L=0.179), so every one of the 16 car colours clears 4.7:1.
+
+Touch targets are ≥44px throughout, including the mono-labelled tab bar.
+
 ## Testing it
 
 It needs two devices; it will not invent traffic that isn't there.
