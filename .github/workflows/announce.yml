@@ -1,0 +1,55 @@
+name: Announce
+
+# Hourly, because the queue decides what is actually due via notBefore and most
+# runs are a no-op. Dispatch by hand when you want to hit a specific minute.
+on:
+  schedule:
+    - cron: '5 * * * *'
+  workflow_dispatch:
+
+# Needed only to commit state.json back after something is sent.
+permissions:
+  contents: write
+
+# Two overlapping runs would post the same queue item twice. Never cancel a run
+# in flight: it may be half way through a thread.
+concurrency:
+  group: announce
+  cancel-in-progress: false
+
+jobs:
+  announce:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # No install step. The script has no dependencies.
+      - name: Check the crypto and the counting
+        run: node announce/post.mjs --selftest
+
+      # --live only asks. The script still refuses unless ANNOUNCE_LIVE is
+      # "true" and all four credentials are present, so a fork or a repo with no
+      # secrets set gets a dry run and a clean exit.
+      - name: Post what is due
+        env:
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
+          ANNOUNCE_LIVE: ${{ vars.ANNOUNCE_LIVE }}
+        run: node announce/post.mjs --live
+
+      - name: Record what went out
+        run: |
+          if git diff --quiet -- announce/state.json; then
+            echo "nothing posted, nothing to record"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add announce/state.json
+          git commit -m "Record what the announcer posted"
+          git push

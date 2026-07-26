@@ -282,6 +282,14 @@ input[type=text]::placeholder{color:var(--txt-3)}
 .warnbox b{font-size:.88rem;color:var(--lime);letter-spacing:-.01em}
 .warnbox p{font-size:.82rem;color:var(--txt-2);margin-top:6px;line-height:1.55}
 
+/* the standing room, offered inside empty states so it reads as an answer to
+   "nobody's here" rather than an ad. Left-aligned because it's a paragraph. */
+.meetcard{text-align:left;max-width:320px;margin:20px auto 0;padding:16px;border-radius:1.5rem;
+  background:rgba(204,255,0,.05);border:1px solid rgba(204,255,0,.24)}
+.meetcard b{display:block;font-size:.88rem;color:var(--lime);letter-spacing:-.01em}
+.meetcard .meet-in{display:block;font-size:.82rem;color:var(--txt-2);margin-top:6px;line-height:1.55}
+.meetcard .btn{margin-top:12px}
+
 /* onboarding */
 #gate{position:fixed;inset:0;z-index:200;background:var(--void);overflow-y:auto;display:none;
   padding:calc(20px + env(safe-area-inset-top)) 10px calc(20px + env(safe-area-inset-bottom))}
@@ -363,7 +371,52 @@ const TILES=[
 /* Shown while moving: hazard reports only, one tap, no reading required. */
 const DRIVE_TILES=[4,5,6,7,10];
 
-const blank=()=>({car:{color:-1,body:0},radius:500,lane:'',broker:0,customBroker:'',gate:0,sound:true,listen:false,keepAwake:true});
+/* ---- the standing room ----
+   Proximity chat has a cold-start problem it can't solve by itself: the first
+   person to open it anywhere is alone, decides it's dead, and doesn't come back.
+   So there is one room, at one instant, for everybody. It's a shared code like
+   any other, which means location is ignored inside it and no coordinates go on
+   the wire.
+
+   The instant is fixed in UTC, not local time. "8pm local" would be twenty-four
+   separate rooms with one person in each, which is the problem again with extra
+   steps. Everyone sees it converted to their own clock instead. */
+const MEET={code:'lane-hour',name:'The Lane Hour',startUTC:19*60,mins:60};
+/* The window containing now, else the next one. Returns absolute ms so no
+   caller has to reason about the day rolling over. */
+function meetWindow(now){
+  const d=new Date(now);
+  const start=Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate())+MEET.startUTC*60000;
+  const end=start+MEET.mins*60000;
+  return now<end?{start,end,open:now>=start}:{start:start+864e5,end:end+864e5,open:false};
+}
+const inMeet=()=>S.lane.trim().toLowerCase()===MEET.code;
+/* The fixed UTC instant on the reader's own clock. */
+function meetLocal(){
+  try{return new Date(meetWindow(Date.now()).start).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}
+  catch(e){return '';}
+}
+/* Coarse on purpose. A to-the-second countdown would need a 1s repaint for
+   something nobody is watching that closely. */
+function meetLine(now){
+  const w=meetWindow(now);
+  if(w.open)return 'On now, about '+Math.max(1,Math.round((w.end-now)/60000))+' minutes left. Everyone who opens Lane in this hour lands in here, wherever they are.';
+  const mins=Math.round((w.start-now)/60000);
+  const away=mins<60?'in '+Math.max(1,mins)+' min':'in '+Math.floor(mins/60)+'h'+(mins%60?' '+(mins%60)+'m':'');
+  return 'At '+meetLocal()+' your time, '+away+'. One room, everyone, wherever they are.';
+}
+/* Only offered where someone is already staring at an empty room. */
+function meetCard(){
+  if(inMeet())return '';
+  const open=meetWindow(Date.now()).open;
+  return `<div class="meetcard"><b>${open?'The Lane Hour is on':'The Lane Hour'}</b>
+    <span class="meet-in">${esc(meetLine(Date.now()))}</span>
+    <button class="btn ${open?'':'ghost'} sm" onclick="joinMeet()">${open?'Join it':'Join early and wait'}</button></div>`;
+}
+/* What to call the current room in the summary rows. */
+const laneLabel=()=>inMeet()?MEET.name:S.lane.trim();
+
+const blank=()=>({car:{color:-1,body:0},radius:500,lane:'',prevLane:'',broker:0,customBroker:'',gate:0,sound:true,listen:false,keepAwake:true});
 let S=load();
 function load(){
   try{
@@ -1063,6 +1116,8 @@ function rRoad(){
     <h1 class="disp">${esc(greet())}.<br><em>${esc(me)}</em></h1>
     <div class="sub">Whatever you send goes to every car within ${esc(rangeTxt())}, over a public relay. It’s a bit like shouting out the window, so anyone can listen in. Nothing gets stored.</div>
   </div>
+  ${inMeet()?`<div class="warnbox"><b>You’re in ${esc(MEET.name)}</b>
+    <p>Location is ignored in here, so you’re with whoever else joined rather than the cars around you. ${esc(meetWindow(Date.now()).open?'It runs for about another '+Math.max(1,Math.round((meetWindow(Date.now()).end-Date.now())/60000))+' minutes.':'It’s not on yet, so it may well be quiet.')} <button class="chip" style="min-height:40px;margin-top:8px;padding:9px 16px;font-size:.8rem" onclick="leaveMeet()">Leave</button></p></div>`:''}
   ${parked?`<div class="warnbox" style="border-color:rgba(16,185,129,.4);background:rgba(16,185,129,.06)"><b style="color:var(--emerald)">Parked mode on</b>
     <p>Typing stays unlocked, and switches off by itself the moment you move.${S.lane.trim()?'':' Your rough spot (±55 m) keeps going out on the public relay while this is on.'} <button class="chip" style="min-height:40px;margin-top:8px;padding:9px 16px;font-size:.8rem" onclick="togParked()">Turn off</button></p></div>`:''}
   ${gpsErr?`<div class="warnbox"><b>${gpsErr==='denied'?'Location is off':'No GPS fix'}</b>
@@ -1086,7 +1141,7 @@ function emptyMsg(){
   if(connState==='offline')return 'You’re offline. Messages won’t send or arrive until you’re back in signal.';
   if(connState!=='live')return 'Linking to the road…';
   if(nearby().length)return 'No one’s said anything yet. Break the ice.';
-  if(linkVerified())return `<b style="color:var(--txt)">You’re on the air, first one here.</b><br>Your signal is going out and coming back fine. There’s just nobody else in range yet, so anyone who opens Lane near you will see you straight away.${inviteBtn}${S.radius<2000&&!S.lane.trim()?widenBtn:''}`;
+  if(linkVerified())return `<b style="color:var(--txt)">You’re on the air, ${inMeet()?'nobody else in the room yet':'first one here'}.</b><br>Your signal is going out and coming back fine. ${inMeet()?'The room stays empty until someone else joins it.':'There’s just nobody else in range yet, so anyone who opens Lane near you will see you straight away.'}${inviteBtn}${S.radius<2000&&!S.lane.trim()?widenBtn:''}${meetCard()}`;
   return 'Getting you on the air…';
 }
 /* One glance = ~one short line. The compose/stopped view keeps the full text;
@@ -1208,7 +1263,9 @@ window.restore=()=>{draft=heldDraft;heldDraft='';renderDock();const t=document.g
 window.invite=()=>{
   if(!S.lane.trim()){S.lane=rid(6);save();lastCell=null;subbed=[];peers.clear();msgs=[];netStart();render();}
   const url=location.origin+location.pathname+'#lane='+encodeURIComponent(S.lane.trim());
-  const share={title:'Lane',text:'Join my lane on Lane so we can talk car to car.',url};
+  const share={title:'Lane',text:inMeet()
+    ?'The Lane Hour is one room for everyone who opens Lane at the same time. This link drops you straight into it.'
+    :'Join my lane on Lane so we can talk car to car.',url};
   if(navigator.share){navigator.share(share).catch(()=>{});}
   else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(()=>toast('Invite link copied'),()=>inviteSheet(url));}
   else inviteSheet(url);
@@ -1216,7 +1273,7 @@ window.invite=()=>{
 window.doInstall=()=>{if(installEvt){installEvt.prompt();installEvt=null;render();}};
 function inviteSheet(url){
   openSheet(`<h3>Invite a car</h3>
-   <p style="font-size:.86rem;color:var(--txt-2);margin-bottom:14px">Anyone who opens this link joins your lane <b>“${esc(S.lane.trim())}”</b>. Location is ignored, so it works for the car beside you or a friend across town.</p>
+   <p style="font-size:.86rem;color:var(--txt-2);margin-bottom:14px">Anyone who opens this link joins <b>“${esc(laneLabel())}”</b>. Location is ignored, so it works for the car beside you or a friend across town.</p>
    <input type="text" readonly value="${esc(url)}" onclick="this.select()" style="font-size:.8rem">
    <button class="btn sm" style="margin-top:12px" onclick="(navigator.clipboard&&navigator.clipboard.writeText)?navigator.clipboard.writeText('${esc(url)}').then(()=>toast('Copied')):toast('Select and copy the link')">Copy link</button>`);
 }
@@ -1319,7 +1376,7 @@ function rCars(){
     ${S.car.color>=0?`<div class="cell wide"><span class="lbl">You are</span>
       <div style="display:flex;align-items:center;gap:12px">${swatch(S.car.color)}
         <div><b style="font-size:1.1rem">${esc(COLORS[S.car.color][0]+' '+BODIES[S.car.body])}</b>
-        <small>${S.lane.trim()?'shared code · '+esc(S.lane.trim()):myCell()?'cell '+esc(myCell()):'no fix yet'}</small></div></div></div>`:''}
+        <small>${S.lane.trim()?(inMeet()?'':'shared code · ')+esc(laneLabel()):myCell()?'cell '+esc(myCell()):'no fix yet'}</small></div></div></div>`:''}
   </div>
   ${list.length?list.map(p=>`<div class="card" style="padding:15px 17px">
     <div style="display:flex;align-items:center;gap:12px">${swatch(p.c)}
@@ -1328,7 +1385,7 @@ function rCars(){
       <button class="chip" style="min-height:44px;padding:11px 18px;font-size:.78rem" data-mute="${esc(p.id)}" aria-pressed="${MUTED.has(p.id)}">${MUTED.has(p.id)?'Unmute':'Mute'}</button>
     </div></div>`).join('')
    :`<div class="empty">${connState==='offline'?'You’re offline. Lane can’t see any cars until you’re back in signal.'
-      :linkVerified()?`<b style="color:var(--txt)">You’re on the air, nobody else yet.</b><br>Lane won’t invent traffic that isn’t there. Pull someone in, or widen your range.${inviteBtn}${S.radius<2000&&!S.lane.trim()?widenBtn:''}`
+      :linkVerified()?`<b style="color:var(--txt)">You’re on the air, nobody else yet.</b><br>Lane won’t invent traffic that isn’t there. Pull someone in, or widen your range.${inviteBtn}${S.radius<2000&&!S.lane.trim()?widenBtn:''}${meetCard()}`
       :'Lane needs another car with the app open and a signal. It won’t invent traffic that isn’t there.'}</div>`}
   <p class="note">Muting lasts for this session. Everyone’s ID changes every time they open the app, so a mute can’t follow someone across drives. That’s the trade for nobody being able to build a grudge against you either.</p>`;
 }
@@ -1383,6 +1440,13 @@ function rMe(){
     <button class="btn ghost sm" style="margin-top:10px" onclick="invite()">Share an invite link</button>
   </div>
   <div class="card">
+    <span class="lbl">${esc(MEET.name)}</span>
+    <p class="note" style="margin-top:0">${esc(meetLine(Date.now()))}</p>
+    <p class="note">A shared code like any other, just one everybody knows. Proximity can’t get two people into an empty app at once, so this is the fallback: turn up at the same time instead of the same place.</p>
+    ${inMeet()?`<button class="btn ghost sm" style="margin-top:12px" onclick="leaveMeet()">Leave the room</button>`
+      :`<button class="btn ${meetWindow(Date.now()).open?'':'ghost'} sm" style="margin-top:12px" onclick="joinMeet()">${meetWindow(Date.now()).open?'Join it':'Join early and wait'}</button>`}
+  </div>
+  <div class="card">
     <span class="lbl">Relay</span>
     <div class="chips">${BROKERS.map((b,i)=>
       `<button class="chip ${!S.customBroker.trim()&&S.broker===i?'on':''}" aria-pressed="${!S.customBroker.trim()&&S.broker===i}" onclick="setBroker(${i})">${esc(b[0])}</button>`).join('')}</div>
@@ -1415,6 +1479,31 @@ window.togParked=()=>{
 window.togSound=()=>{S.sound=!S.sound;save();render();};
 window.togAwake=()=>{S.keepAwake=!S.keepAwake;save();if(S.keepAwake)acquireWake();else releaseWake();render();};
 window.setLane=v=>{S.lane=v.trim().slice(0,24);save();peers.clear();msgs=[];lastCell=null;subbed=[];netStart();render();};
+/* Joining remembers what you were on so leaving puts you back, rather than
+   dumping you into proximity mode and quietly starting to broadcast a position
+   you'd switched off. */
+window.joinMeet=()=>{
+  if(inMeet())return;
+  S.prevLane=S.lane;
+  setLane(MEET.code);
+  toast(meetWindow(Date.now()).open?'You’re in '+MEET.name:'Waiting in '+MEET.name);
+};
+window.leaveMeet=()=>{
+  const back=S.prevLane||'';
+  S.prevLane='';
+  setLane(back);
+  toast(back?'Back on “'+back+'”':'Back to the cars around you');
+};
+/* Text-only refresh. A periodic render() would wipe a half-typed message and
+   steal focus out of the You tab's inputs, so the view is only rebuilt on the
+   one transition that actually changes what the buttons do. */
+let meetWasOpen=meetWindow(Date.now()).open;
+setInterval(()=>{
+  const now=Date.now(),open=meetWindow(now).open;
+  if(open!==meetWasOpen){meetWasOpen=open;render();return;}
+  const line=meetLine(now);
+  document.querySelectorAll('.meet-in').forEach(e=>{e.textContent=line;});
+},30000);
 window.setBroker=i=>{S.broker=i;S.customBroker='';save();retry=0;netStart();render();};
 window.setCustom=v=>{S.customBroker=v.trim().slice(0,200);save();retry=0;netStart();render();};
 window.carSheet=()=>{
@@ -1432,7 +1521,7 @@ window.netSheet=()=>{
    <div class="srow"><div class="k">Relay</div><b class="mono" style="color:var(--lime)">${esc(brokerName())}</b></div>
    <div class="srow"><div class="k">Status</div><b class="mono">${connState==='live'?'Connected':connState==='wait'?'Linking':'Offline'}</b></div>
    <div class="srow"><div class="k">Location</div><b class="mono">${gpsErr?esc(gpsErr):pos?'±'+Math.round(pos.acc)+' m':'waiting'}</b></div>
-   <div class="srow"><div class="k">${S.lane.trim()?'Shared code':'Area'}</div><b class="mono">${S.lane.trim()?esc(S.lane.trim()):c?esc(c):'—'}</b></div>
+   <div class="srow"><div class="k">${inMeet()?'Room':S.lane.trim()?'Shared code':'Area'}</div><b class="mono">${S.lane.trim()?esc(laneLabel()):c?esc(c):'—'}</b></div>
    <div class="srow"><div class="k">Cars in range</div><b class="mono">${nearby().length}</b></div>
    <p class="note">Lane groups people by a map square about 4 km across, then only shows you the ones inside your range setting.</p>
    <button class="btn ghost sm" style="margin-top:14px" onclick="closeSheet();retry=0;netStart();toast('Reconnecting…')">Reconnect</button>`);

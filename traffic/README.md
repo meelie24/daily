@@ -45,6 +45,24 @@ Lane is built on that assumption rather than pretending otherwise:
 A **shared code** (any word both of you type) ignores location completely and
 publishes no coordinates at all. Good for a convoy, or for testing with a friend.
 
+## The Lane Hour
+
+Proximity chat has a cold start problem it can't solve on its own. The first
+person to open it anywhere is alone, decides it's dead, and doesn't come back.
+
+So there's one room, at 19:00 UTC every day, for everyone. It's an ordinary
+shared code (`lane-hour`) that the app knows about, which means location is
+ignored inside it and nothing about where you are goes on the wire. The app shows
+it in your own local time and offers it where you're already looking at an empty
+room, rather than as a banner.
+
+The instant is fixed in UTC deliberately. A room "at 8pm local" would be
+twenty-four separate rooms with one person in each, which is the original problem
+wearing a hat.
+
+Joining remembers whatever code you were on, so leaving puts you back rather than
+quietly switching your position broadcast back on.
+
 ## Safety, and what it cost
 
 Using a phone while driving is illegal in most places, red light included. Lane
@@ -119,6 +137,8 @@ You need two devices. It won't invent traffic that isn't there.
 | `traffic/index.html` | The whole app |
 | `traffic/og.png` | The 1200×630 card the link unfurls as |
 | `traffic/DOMAIN.md` | Moving it to a real domain |
+| `traffic/LAUNCH.md` | Where to launch it, and the copy |
+| `announce/` | Posts the launch queue to one X account on a schedule |
 | `.github/workflows/pages.yml` | Deploys the repo to GitHub Pages on push to main |
 | `index.html` | A different app that already lived in this repo, untouched |
 

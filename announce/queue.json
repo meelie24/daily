@@ -1,0 +1,27 @@
+[
+  {
+    "id": "launch-thread",
+    "notBefore": null,
+    "text": "I built a thing for when you're stuck at a red light.\n\nEveryone around you who has it open shows up. No names, no accounts. You're just your car. Red Car, Blue SUV, White Van.\n\nYou type, everyone within a few hundred metres sees it. Nothing is saved.",
+    "replies": [
+      "It's a single web page, nothing to install: https://meelie24.github.io/daily/traffic/\n\nTyping locks itself while you're moving, so it's a red-light and traffic-jam thing rather than a driving thing.",
+      "The catch with proximity chat is being the only one there. So there's one room at 19:00 UTC every day that ignores location completely. Turn up then and there will be other people in it."
+    ]
+  },
+  {
+    "id": "how-it-works",
+    "notBefore": "2026-08-02T17:00:00Z",
+    "text": "How the proximity bit works, since a few people asked.\n\nYour position becomes a geohash, and the geohash is the chat room. You publish to your own square and listen to the eight around it, so two cars either side of a boundary still find each other.",
+    "replies": [
+      "Coordinates get rounded to about 55 m before they go out, and your handle changes every time you cross a square, so nobody watching the relay can stitch your heartbeats into a whole trip.\n\nIt's one HTML file: https://meelie24.github.io/daily/traffic/"
+    ]
+  },
+  {
+    "id": "no-direction",
+    "notBefore": "2026-08-09T17:00:00Z",
+    "text": "One thing it deliberately won't do: tell you which direction anyone is in.\n\n\"The blue car behind you\" plus anonymity is a targeting reticle, and everyone involved can physically see each other. You get coarse distance and nothing else.",
+    "replies": [
+      "Same reason there are no replies, no DMs and no mentions. It's broadcast to the area or nothing.\n\nhttps://meelie24.github.io/daily/traffic/"
+    ]
+  }
+]
