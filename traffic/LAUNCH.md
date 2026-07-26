@@ -43,6 +43,11 @@ Tuesday. Do the first one.
 X suppresses posts with links in them by a wide margin, so the link goes in the
 first self-reply, not the post.
 
+That works when you post by hand, which is how this section is written. If you
+use `announce/` to post it instead, read that directory's README first: X
+restricted programmatic replies in February 2026, and whether replying to your
+own post is exempt isn't publicly settled.
+
 **Post:**
 
 > I built a thing for when you're stuck at a red light.

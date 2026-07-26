@@ -30,6 +30,14 @@ const MAX_LEN = 280;
 /* At most this many posts per queue item. Pay-per-use bills each call, so an
    accidental hundred-post thread should fail the pre-flight, not the invoice. */
 const MAX_THREAD = 5;
+/* Pay-per-use rates as of 2026-04-20. A post carrying a link costs thirteen
+   times a plain one, which X did deliberately to price out link spam. Shown in
+   the dry run so the bill is a decision rather than a surprise; check the
+   current numbers on X's pricing page before trusting these. */
+const COST_PLAIN = 0.015, COST_LINK = 0.20;
+/* twitter-text rejects these outright, and they are invisible, so they arrive by
+   copy-paste and cost you a billed call to find out. */
+const INVALID_CHARS = /[￾﻿￿]/;
 
 /* ------------------------------------------------------------------ encoding */
 
@@ -91,15 +99,22 @@ catch { EMOJI = null; }
 
 const URL_RE = /https?:\/\/[^\s<>"']+/gi;
 
+/* Deliberately does NOT trim. twitter-text doesn't either, so trimming here
+   would report fewer characters than X counts and let a post pass this check and
+   still come back rejected, after being billed. */
 export function weightedLength(text) {
-  let s = String(text).trim();
+  let s = String(text).normalize();
   let total = 0;
-  // Links first: replace each with a marker so its own characters stop counting.
+  // Links first: drop each one so its own characters stop counting.
   s = s.replace(URL_RE, () => { total += URL_COST; return ''; });
   if (EMOJI) s = s.replace(EMOJI, () => { total += 2; return ''; });
   for (const ch of s) total += isLight(ch.codePointAt(0)) ? 1 : 2;
   return total;
 }
+
+/* A link anywhere in the text moves the post into the expensive bracket. */
+const hasLink = t => /https?:\/\/[^\s<>"']+/i.test(String(t));
+const costOf = t => (hasLink(t) ? COST_LINK : COST_PLAIN);
 
 /* ------------------------------------------------------------------ the API */
 
@@ -118,13 +133,39 @@ async function createPost(text, replyTo, creds) {
   const raw = await res.text();
   let json = null;
   try { json = JSON.parse(raw); } catch { /* keep raw for the error message */ }
+
   if (!res.ok) {
     const why = json?.detail || json?.title || json?.errors?.[0]?.message || raw.slice(0, 400);
-    throw new Error(`X returned ${res.status}: ${why}`);
+    throw new Error(`X returned ${res.status}: ${why}${hint(res, why, !!replyTo)}`);
   }
+  /* A 2xx can still carry an errors array beside the data, so success is "there
+     is an id", not "the status was fine". The id is a decimal string longer than
+     a double can hold, so it never gets parsed as a number. */
   const id = json?.data?.id;
-  if (!id) throw new Error(`X returned 200 but no post id: ${raw.slice(0, 400)}`);
+  if (typeof id !== 'string') {
+    const why = json?.errors?.map(e => e.detail || e.message || e.title).filter(Boolean).join('; ');
+    throw new Error(`X returned ${res.status} with no post id${why ? ': ' + why : ': ' + raw.slice(0, 400)}`);
+  }
   return id;
+}
+
+/* The status codes here are all reported the same way and mean very different
+   things, so say which one this probably is rather than leaving a bare 403. */
+function hint(res, why, wasReply) {
+  const s = res.status;
+  if (s === 429) {
+    const reset = res.headers.get('x-rate-limit-reset');
+    return reset ? `\n  rate limited until ${new Date(Number(reset) * 1000).toISOString()}` : '\n  rate limited';
+  }
+  if (s === 401) return '\n  the credentials themselves are wrong or have been regenerated since';
+  if (s === 403) {
+    if (/duplicate/i.test(why)) return '\n  X refuses identical text twice. Edit the queue item rather than rerunning it.';
+    if (/permission|oauth1/i.test(why)) return '\n  the app is not Read and write, or the access token predates that change and needs regenerating';
+    if (wasReply) return '\n  programmatic replies are restricted: since Feb 2026 the API only lets you reply where the original author mentioned or quoted you.'
+      + '\n  A self-reply may or may not be exempt. If this keeps happening, post the reply by hand (the app is not restricted) or move the link into the post itself.';
+    return '';
+  }
+  return '';
 }
 
 /* ------------------------------------------------------------------ files */
@@ -148,11 +189,10 @@ function preflight(item) {
   const bad = [];
   if (parts.length > MAX_THREAD) bad.push(`thread is ${parts.length} posts, cap is ${MAX_THREAD}`);
   parts.forEach((t, i) => {
-    if (typeof t !== 'string' || !t.trim()) bad.push(`post ${i + 1} is empty`);
-    else {
-      const n = weightedLength(t);
-      if (n > MAX_LEN) bad.push(`post ${i + 1} is ${n} weighted characters, ${n - MAX_LEN} over`);
-    }
+    if (typeof t !== 'string' || !t.trim()) { bad.push(`post ${i + 1} is empty`); return; }
+    const n = weightedLength(t);
+    if (n > MAX_LEN) bad.push(`post ${i + 1} is ${n} weighted characters, ${n - MAX_LEN} over`);
+    if (INVALID_CHARS.test(t)) bad.push(`post ${i + 1} contains a byte-order mark or U+FFFE, which X rejects`);
   });
   return bad;
 }
@@ -208,7 +248,9 @@ function selftest() {
   console.log('\n-- weighted length --');
   ok('plain ASCII counts one each', weightedLength('hello') === 5, weightedLength('hello'));
   ok('280 ASCII characters fit exactly', weightedLength('a'.repeat(280)) === 280);
-  ok('surrounding whitespace is trimmed', weightedLength('  hi  ') === 2, weightedLength('  hi  '));
+  // twitter-text counts spaces like any other character. Trimming here would
+  // under-report and let an over-length post through to a billed rejection.
+  ok('surrounding whitespace is counted, not trimmed', weightedLength('  hi  ') === 6, weightedLength('  hi  '));
   ok('a short link still costs 23', weightedLength('https://a.co') === URL_COST, weightedLength('https://a.co'));
   ok('a long link costs the same 23', weightedLength('https://example.com/' + 'x'.repeat(300)) === URL_COST);
   ok('text plus a link adds up', weightedLength('see: https://a.co') === 5 + URL_COST, weightedLength('see: https://a.co'));
@@ -225,6 +267,15 @@ function selftest() {
      preflight({ text: 'ok', replies: ['b'.repeat(300)] })[0].includes('post 2'));
   ok('catches an empty post', preflight({ text: '   ' }).length === 1);
   ok('caps thread length', preflight({ text: 'a', replies: ['b', 'c', 'd', 'e', 'f'] }).some(m => m.includes('cap')));
+  ok('catches a stray byte-order mark', preflight({ text: 'hello﻿' }).some(m => m.includes('byte-order')));
+
+  console.log('\n-- what a run will cost --');
+  ok('a plain post is the cheap rate', costOf('no links here') === COST_PLAIN, costOf('no links here'));
+  ok('a post with a link is the expensive rate', costOf('see https://a.co') === COST_LINK, costOf('see https://a.co'));
+  ok('link detection is not fooled by the word http', costOf('the http protocol') === COST_PLAIN);
+  ok('the expensive rate really is more than ten times the cheap one', COST_LINK / COST_PLAIN > 10);
+  ok('detection does not carry state between calls',
+     costOf('https://a.co') === COST_LINK && costOf('https://a.co') === COST_LINK);
 
   console.log('\n-- picking what is due --');
   const q = [
@@ -258,7 +309,10 @@ async function main() {
   const problems = preflight(item);
   const parts = [item.text, ...(item.replies || [])];
   console.log(`next up: ${item.id}`);
-  parts.forEach((t, i) => console.log(`  [${i + 1}/${parts.length}] ${weightedLength(t)}/${MAX_LEN}  ${JSON.stringify(t.slice(0, 90))}`));
+  parts.forEach((t, i) => console.log(
+    `  [${i + 1}/${parts.length}] ${weightedLength(t)}/${MAX_LEN}  $${costOf(t).toFixed(3)}${hasLink(t) ? ' (link)' : ''}  ${JSON.stringify(t.slice(0, 80))}`));
+  const bill = parts.reduce((a, t) => a + costOf(t), 0);
+  console.log(`  about $${bill.toFixed(3)} at the April 2026 rates, ${parts.length} billed call${parts.length === 1 ? '' : 's'}`);
   if (problems.length) {
     console.error('will not send:\n  ' + problems.join('\n  '));
     process.exit(1);
