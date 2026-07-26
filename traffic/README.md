@@ -145,6 +145,38 @@ allowed when stopped (canned-only would be safer but isn't what this is);
 cross-session bans or content ML. (The hands-free TTS "listen" mode flagged here
 as the main thing worth building has since been built — see Listen mode above.)
 
+## Airtight & friendly pass
+
+A second research round (Web Speech reality, PWA/offline, the cold-start problem,
+a fresh correctness sweep, trust/privacy) drove another batch:
+
+- **Listen mode now survives the phone.** iOS Safari kills speech when the screen
+  sleeps or the app backgrounds — and because Lane mutes the badge/blip while
+  moving, that failure was *silent*. Fixes: a **Screen Wake Lock** ("keep screen
+  awake" toggle) holds the screen so the synth is never suspended, the wedged
+  queue is cleared on return, and the copy is honest on iPhone ("keep the screen
+  on") instead of promising pocket-the-phone audio no web API can deliver.
+- **The ghost town.** A lone user now sees "**You're on the air — first one
+  here**" (proven by watching their own message echo back), not a dead end — with
+  a one-tap **Invite the car next to you** (`navigator.share` → `#lane=` deep-link
+  auto-join) and a **Widen range** shortcut. Onboarding sets the expectation that
+  quiet is normal.
+- **Privacy told straight.** The main screen said "nearby / nothing saved"; it now
+  says the truth — "goes out over a public relay… like shouting out the window."
+  "Private lane" is renamed **Shared code** ("a channel name, not a password"),
+  the safety gate gained an "it's public and it's gone" point, and parked-at-home
+  broadcast is disclosed at the point of use.
+- **Delivery ticks** on your own messages (the same wire echo), a distinct
+  **offline** state (no signal → send blocked, no pointless relay-rotation), an
+  inline **web app manifest** for Android install, **surrogate-safe truncation**
+  (emoji no longer render "�" or garble read-aloud), **handle rotation per cell**
+  so no single broker subscriber can trace a whole drive, a self-lifting **Hush 15
+  min**, Android **haptics**, and the return-while-moving scrollback bug fixed.
+
+Two calls made with the user: build the full set, but **stay single-file** — so
+true offline cold-launch (which needs a service-worker file) is intentionally not
+included; the manifest + HTTP cache covers install and connectivity messaging.
+
 ## Testing it
 
 It needs two devices; it will not invent traffic that isn't there.

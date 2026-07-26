@@ -10,12 +10,15 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Lane">
 <meta name="description" content="Talk to the cars around you. Anonymous, nothing saved.">
+<!-- no third-party beacon: strip the Referer from the font requests (does not affect the broker Origin header) -->
+<meta name="referrer" content="no-referrer">
 <title>Lane &middot; talk to the cars around you</title>
-<!-- app icon + manifest inline as data URIs so the whole app stays one file and can go to a home screen -->
+<!-- app icon inline as a data URI so the whole app stays one file and can go to a home screen; the web manifest is built in JS at boot -->
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Crect width='180' height='180' rx='40' fill='%23ccff00'/%3E%3Cpath d='M46 150L64 30M134 150L116 30M90 44v14M90 78v14M90 112v14' stroke='%23000' stroke-width='9' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<!-- non-render-blocking: media=print then swap to all on load, so a stalling radio can't delay first paint -->
+<link rel="stylesheet" referrerpolicy="no-referrer" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
 <style>
 :root{
   --void:#000000;
@@ -130,6 +133,8 @@ input,textarea{font-family:inherit;font-size:1rem;color:var(--txt)}
   letter-spacing:.18em;color:var(--txt-info);margin-bottom:4px}
 .msg.mine .who{flex-direction:row-reverse}
 .msg .when{font-size:9px;letter-spacing:.1em;color:var(--txt-3)}
+.msg .tick{font-size:11px;color:var(--txt-3);line-height:1}
+.msg .tick.ok{color:var(--lime)}
 .msg .txt{font-size:.95rem;letter-spacing:-.01em;word-wrap:break-word;overflow-wrap:anywhere}
 .msg.mine{flex-direction:row-reverse}
 .msg.mine .bub{background:rgba(204,255,0,.08);border-color:rgba(204,255,0,.3);
@@ -340,7 +345,7 @@ const TILES=[
 /* Shown while moving: hazard reports only, one tap, no reading required. */
 const DRIVE_TILES=[4,5,6,7,10];
 
-const blank=()=>({car:{color:-1,body:0},radius:500,lane:'',broker:0,customBroker:'',gate:0,sound:true,listen:false});
+const blank=()=>({car:{color:-1,body:0},radius:500,lane:'',broker:0,customBroker:'',gate:0,sound:true,listen:false,keepAwake:true});
 let S=load();
 function load(){
   try{
@@ -349,6 +354,37 @@ function load(){
   }catch(e){}
   return blank();
 }
+
+/* ---- web app manifest, built inline so the app stays one file yet installs on Android ---- */
+(function(){
+  try{
+    const icon="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='512' height='512'%3E%3Crect width='512' height='512' rx='114' fill='%23ccff00'/%3E%3Cpath d='M131 427L182 85M381 427L330 85M256 125v40M256 222v40M256 319v40' stroke='%23000' stroke-width='26' stroke-linecap='round'/%3E%3C/svg%3E";
+    const m={name:'Lane',short_name:'Lane',description:'Talk to the cars around you. Anonymous, nothing saved.',
+      display:'standalone',background_color:'#000000',theme_color:'#000000',orientation:'portrait',
+      icons:[{src:icon,sizes:'any',type:'image/svg+xml',purpose:'any maskable'}]};
+    const l=document.createElement('link');
+    l.rel='manifest';l.href='data:application/manifest+json,'+encodeURIComponent(JSON.stringify(m));
+    document.head.appendChild(l);
+  }catch(e){}
+})();
+
+/* ---- Android fires this when installable; stash it to power an in-app install button ---- */
+let installEvt=null;
+addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=e;});
+const isInstalled=()=>{try{return matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;}catch(e){return false;}};
+
+/* ---- deep-link join: #lane=code auto-joins a shared code, then strips the hash ---- */
+let joinedLane='';
+(function(){
+  try{
+    const mt=(location.hash||'').match(/[#&](?:lane|l)=([a-z0-9-]{1,24})/i);
+    if(mt){
+      const code=decodeURIComponent(mt[1]).toLowerCase().slice(0,24);
+      if(code&&code!==S.lane){S.lane=code;save();joinedLane=code;}
+      history.replaceState(null,'',location.pathname+location.search);
+    }
+  }catch(e){}
+})();
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 
 /* Apostrophe included: wire-controlled strings end up inside single-quoted JS
@@ -356,9 +392,13 @@ function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const rid=n=>{let s='',a='abcdefghijkmnpqrstuvwxyz23456789';for(let i=0;i<n;i++)s+=a[Math.random()*a.length|0];return s;};
-/* Rotates every session. The car is your face; this is not a name anyone can
-   build a grudge against across drives. */
-const MYID=rid(8);
+/* Rotates every session AND every time you cross into a new cell, so no single
+   broker subscriber can stitch your heartbeats into a whole-drive trace. The car
+   is your face; this handle is never a grudge target across drives. MYIDS keeps
+   the recent handles so our own echoed messages are still recognised as ours. */
+let MYID=rid(8);
+const MYIDS=new Set([MYID]);
+function rotateId(){MYID=rid(8);MYIDS.add(MYID);if(MYIDS.size>4){const it=MYIDS.values();MYIDS.delete(it.next().value);}}
 
 /* ============ GEO ============ */
 /* Geohash cell = the chat room. Precision is FIXED at 5 on purpose: if it varied
@@ -410,7 +450,7 @@ const snap=v=>Math.round(v/QUANT)*QUANT;
 
 /* ---- motion state machine ---- */
 /* Fails closed: unknown speed, stale fix or bad accuracy all count as MOVING. */
-let pos=null,gpsErr=null,moving=true,parked=false,parkedAt=0;
+let pos=null,gpsErr=null,moving=true,parked=false,parkedAt=0,moveReason='uncertain';
 let spdBuf=[],lastFix=null,stillSince=0;
 const MOVE_MS=3,STOP_MS=0.5,STOP_HOLD=3000,STALE_MS=8000;
 
@@ -442,8 +482,10 @@ function evalMotion(){
     if(sp!=null&&sp>=MOVE_MS){parked=false;toast('Moving — parked mode off');}
     else moving=false;
   }
-  else if(stale||bad||sp==null){moving=true;stillSince=0;}
-  else if(sp>=MOVE_MS){moving=true;stillSince=0;}
+  /* Distinguish "GPS says you're moving" from "GPS can't tell" — the second is a
+     stationary user who deserves a different message and a one-tap unlock. */
+  else if(stale||bad||sp==null){moving=true;stillSince=0;moveReason='uncertain';}
+  else if(sp>=MOVE_MS){moving=true;stillSince=0;moveReason='speed';}
   else if(sp<STOP_MS){
     if(!stillSince)stillSince=now;
     if(now-stillSince>=STOP_HOLD)moving=false;
@@ -451,6 +493,7 @@ function evalMotion(){
   else stillSince=0;
   if(was!==moving){
     if(moving&&draft.trim()){heldDraft=draft;draft='';}
+    if(!moving)haptic([12,60,12]);   /* felt 'you can type again' on Android; no-op on iOS */
     renderDock();
     if(tab==='road')render();
   }
@@ -583,8 +626,11 @@ function MqttClient(url,opts){
 /* ============ NET ============ */
 let mq=null,brokerIdx=0,connState='off',subbed=[],retry=0,retryT=null;
 const peers=new Map();
-let msgs=[],seen=new Set(),unread=0;
+let msgs=[],seen=new Set(),unread=0,linkVerifiedAt=0;
 const MUTED=new Set();
+/* True once our own packet has echoed back recently — distinguishes "working but
+   quiet" from "broken" in the empty state. */
+const linkVerified=()=>linkVerifiedAt&&Date.now()-linkVerifiedAt<40000;
 const HEARTBEAT=15000,PEER_TTL=50000,MSG_TTL=420000;
 const brokerUrl=()=>S.customBroker.trim()||BROKERS[clamp(S.broker,0,BROKERS.length-1)][1];
 const brokerName=()=>S.customBroker.trim()?'Custom':BROKERS[clamp(S.broker,0,BROKERS.length-1)][0];
@@ -604,6 +650,8 @@ function setConn(s){if(connState!==s){connState=s;paintConn();}}
 function netStart(){
   if(mq){mq.close();mq=null;}
   if(retryT){clearTimeout(retryT);retryT=null;}
+  /* No point dialling into a dead radio — an offline listener will reconnect us. */
+  if(navigator.onLine===false){setConn('offline');return;}
   setConn('wait');
   const url=brokerUrl();
   mq=new MqttClient(url,{
@@ -619,7 +667,7 @@ function netStart(){
       /* Rotate to the next public broker after a couple of failures of ANY kind
          — a broker that refuses us, never sends CONNACK, or dies is no better
          than one that closes. Never rotate a user's own custom broker. */
-      const rotatable=!S.customBroker.trim()&&why!=='intentional';
+      const rotatable=!S.customBroker.trim()&&why!=='intentional'&&navigator.onLine!==false;
       if(rotatable&&retry>=2){
         S.broker=(clamp(S.broker,0,BROKERS.length-1)+1)%BROKERS.length;save();
         toast('Switching relay → '+brokerName());
@@ -667,7 +715,18 @@ const MAX_PEERS=250,MAX_ID=32,HEY_MINGAP=4000;
 function onWire(raw){
   let m;
   try{m=JSON.parse(raw);}catch(e){return;}
-  if(!m||m.v!==1||typeof m.id!=='string'||m.id===MYID)return;
+  if(!m||m.v!==1||typeof m.id!=='string')return;
+  if(MYIDS.has(m.id)){
+    /* Our own packet came back — ordered TCP means the SUBSCRIBE landed first, so
+       this is live proof the round trip works even when the road is empty. */
+    linkVerifiedAt=Date.now();
+    if(m.k==='msg'){ /* mark the matching outgoing bubble delivered */
+      const key=m.id+'|'+(m.ts|0)+'|'+cap(String(m.t==null?'':m.t),240);
+      for(let i=msgs.length-1;i>=0;i--){const mm=msgs[i];
+        if(mm.mine&&!mm.delivered&&(mm.id+'|'+(mm.ts|0)+'|'+mm.txt)===key){mm.delivered=true;if(tab==='road'&&!moving)paintStream();break;}}
+    }
+    return;
+  }
   if(m.id.length>MAX_ID)return;                 /* bound Map-key and 'seen' growth */
   if(m.k==='bye'){if(peers.delete(m.id))schedulePaint();return;}
   const known=peers.get(m.id);
@@ -697,7 +756,7 @@ function onWire(raw){
   schedulePaint();
   if(m.k==='msg'){
     if(MUTED.has(m.id))return;
-    const txt=String(m.t==null?'':m.t).slice(0,240);
+    const txt=cap(String(m.t==null?'':m.t),240);
     if(!txt.trim())return;
     const key=m.id+'|'+(m.ts|0)+'|'+txt;
     if(seen.has(key))return; /* brokers can redeliver; never show a line twice */
@@ -714,10 +773,14 @@ function scheduleDrive(){
     driveTrailT=setTimeout(()=>{driveTrailT=null;if(moving&&tab==='road')paintStream();},DRIVE_MIN_MS-(now-driveAt));
   }
 }
+/* Coalesce stopped-stream repaints like peer repaints: a burst of arrivals in one
+   frame collapses to a single rebuild instead of one teardown per message. */
+let streamQ=false;
+function scheduleStream(){if(streamQ)return;streamQ=true;requestAnimationFrame(()=>{streamQ=false;if(tab==='road'&&!moving)paintStream();});}
 function addMsg(m){
   msgs.push(m);
   if(msgs.length>120)msgs=msgs.slice(-80);
-  if(tab==='road'){if(moving)scheduleDrive();else paintStream();}
+  if(tab==='road'){if(moving)scheduleDrive();else scheduleStream();}
   /* No unread badge or ping while moving or quiet — a counter is an obligation
      and an obligation is a glance (safety brief P0 #4). It waits until you stop. */
   else if(!moving&&!quiet){unread++;nav();}
@@ -745,8 +808,13 @@ function netTick(){
   const now=Date.now();
   const cell=myCell();
   if(cell!==lastCell){
+    const wasCell=lastCell;
     lastCell=cell;
     syncSubs();
+    /* A real cell-to-cell move (not the first fix, not lane mode) rotates the
+       handle, so no single broker subscriber can chain your heartbeats into a
+       whole-drive trace. The old handle just TTL-expires from others' lists. */
+    if(wasCell&&cell&&!S.lane.trim())rotateId();
     /* Don't wipe peers on a cell flip — the 3x3 subscription overlaps heavily
        with the neighbouring cell, and a GPS jitter to an adjacent cell and back
        would otherwise blank everyone. Stale peers TTL-expire on their own. */
@@ -756,17 +824,27 @@ function netTick(){
 }
 setInterval(netTick,5000);
 window.addEventListener('pagehide',()=>{sayBye();});
+/* A dead zone is not a broker failure — reflect it honestly and don't burn the
+   relay-rotation budget retrying into no signal. */
+addEventListener('offline',()=>{if(retryT){clearTimeout(retryT);retryT=null;}if(mq){mq.close();mq=null;}setConn('offline');if(tab==='road')paintStream();});
+addEventListener('online',()=>{retry=0;lastCell=null;netStart();});
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden){
     /* Backgrounded: assume driving, and stop the high-accuracy GPS watch — it's
        the biggest battery cost and nothing on screen consumes it. */
-    moving=true;renderDock();stopGeo();
+    moving=true;renderDock();
+    if(tab==='road')paintStream(); /* collapse scrollback to the single drive card now, so return-while-moving is correct */
+    stopGeo();
   }else{
     /* Foregrounded: GPS back on, and hidden-tab timer clamping (>=60s) may have
        let the socket die silently — reconnect if we're not demonstrably live. */
-    startGeo();evalMotion();
+    startGeo();acquireWake();evalMotion();
+    /* iOS suspends speechSynthesis while backgrounded and can wedge it mid-utterance
+       — clear the frozen queue so Listen recovers instead of going silent forever. */
+    if(TTS_OK&&S.listen){try{speechSynthesis.cancel();}catch(e){}ttsPending=0;}
     if(connState!=='live'){retry=0;lastCell=null;netStart();}
     else{lastCell=null;sayHey();}
+    if(tab==='road')render(); /* guarantee the stream reflects current moving state on return */
   }
 });
 
@@ -821,15 +899,30 @@ function toast(msg){
   if(toastT)clearTimeout(toastT);
   toastT=setTimeout(()=>t.classList.remove('show'),2200);
 }
-let actx=null;
-/* Browsers won't let an AudioContext make sound until it's been resumed inside a
-   user gesture, so create+resume it on the first tap; otherwise the blip is
-   silently dropped forever. */
+const IS_IOS=/iP(hone|ad|od)/.test(navigator.platform||'')||(/Mac/.test(navigator.platform||'')&&navigator.maxTouchPoints>1);
+/* Android-only felt confirmation; navigator.vibrate is a no-op on iOS, so this
+   never fires there and we never ship a polyfill. */
+function haptic(ms){try{if('vibrate'in navigator)navigator.vibrate(ms);}catch(e){}}
+
+/* ---- Screen Wake Lock: a dash-mounted phone auto-locks at a light and takes the
+   whole app (GPS, socket, speech) down with it. Hold the screen while Lane is
+   foreground and the user hasn't opted out. ---- */
+let wl=null;
+async function acquireWake(){
+  if(!('wakeLock'in navigator)||document.visibilityState!=='visible'||!S.keepAwake||S.car.color<0)return;
+  try{wl=await navigator.wakeLock.request('screen');wl.addEventListener('release',()=>{wl=null;});}catch(e){wl=null;}
+}
+function releaseWake(){if(wl){try{wl.release();}catch(e){}wl=null;}}
+
+let actx=null,armedThisSession=false;
+/* Browsers won't let an AudioContext make sound (or, on iOS, speak) until it's
+   been resumed inside a user gesture — do it on the first tap. */
 addEventListener('pointerdown',()=>{
   try{
     actx=actx||new (window.AudioContext||window.webkitAudioContext)();
     if(actx.state==='suspended')actx.resume();
   }catch(e){}
+  if(TTS_OK&&S.listen&&!armedThisSession){try{speechSynthesis.resume();}catch(e){}armedThisSession=true;renderDock();}
 },{once:false});
 function blip(){
   try{
@@ -880,7 +973,7 @@ function dupCombos(){
   by.forEach((ids,k)=>{if(ids.size>1)dup.add(k);});
   return dup;
 }
-const label=(id,c,b,dup)=>COLORS[c][0]+' '+BODIES[b]+(dup&&dup.has(c+'|'+b)?' '+id.slice(0,2).toUpperCase():'');
+const label=(id,c,b,dup)=>COLORS[c][0]+' '+BODIES[b]+(dup&&dup.has(c+'|'+b)?' '+[...String(id)].slice(0,2).join('').toUpperCase():'');
 /* Coarse buckets only. Never a bearing, never "behind you" — that turns an
    anonymous message into a targeting reticle for the car it names. */
 function band(d){
@@ -898,7 +991,7 @@ function nearby(){
 function statusChip(){
   const n=nearby().length;
   const cls=connState==='live'?'live':connState==='wait'?'wait':'off';
-  const txt=connState==='live'?(n?n+' in range':'listening'):connState==='wait'?'linking':'offline';
+  const txt=connState==='offline'?'no signal':connState==='live'?(n?n+' in range':'listening'):connState==='wait'?'linking':'offline';
   return `<button type="button" class="tag ${cls}" onclick="netSheet()" aria-label="Connection: ${esc(txt)}. Open details."><i></i>${esc(txt)}</button>`;
 }
 function paintConn(){
@@ -950,10 +1043,10 @@ function rRoad(){
   return `<div class="ghead">
     <div class="hrow">${statusChip()}<span class="mono" style="color:var(--txt-info)">${esc(rangeTxt())}</span></div>
     <h1 class="disp">${esc(greet())}.<br><em>${esc(me)}</em></h1>
-    <div class="sub">Anything you send goes to every car within ${esc(rangeTxt())} of you. Nothing is saved.</div>
+    <div class="sub">Goes out over a public relay to the cars within ${esc(rangeTxt())} — like shouting out the window. Anyone nearby, or quietly listening, can hear. Not stored anywhere.</div>
   </div>
   ${parked?`<div class="warnbox" style="border-color:rgba(16,185,129,.4);background:rgba(16,185,129,.06)"><b style="color:var(--emerald)">Parked mode on</b>
-    <p>Typing stays unlocked. It switches off by itself the moment you start moving. <button class="chip" style="min-height:40px;margin-top:8px;padding:9px 16px;font-size:.8rem" onclick="togParked()">Turn off</button></p></div>`:''}
+    <p>Typing stays unlocked, and switches off by itself the moment you move.${S.lane.trim()?'':' Your rough spot (±55 m) keeps going out on the public relay while this is on.'} <button class="chip" style="min-height:40px;margin-top:8px;padding:9px 16px;font-size:.8rem" onclick="togParked()">Turn off</button></p></div>`:''}
   ${gpsErr?`<div class="warnbox"><b>${gpsErr==='denied'?'Location is off':'No GPS fix'}</b>
     <p>${gpsErr==='denied'
       ?'Lane finds the cars around you by location. Turn it on in your browser settings, or use a private lane code from You.'
@@ -968,9 +1061,22 @@ function rRoad(){
 const locating=()=>!pos&&!gpsErr&&!S.lane.trim();
 /* Coarse relative time — a 6-minute-old "Accident ahead" must not read as live. */
 function ago(ts){const s=Math.max(0,(Date.now()-ts)/1000);return s<45?'now':s<90?'1m':s<3600?Math.round(s/60)+'m':Math.round(s/3600)+'h';}
+/* Empty-state copy, state-aware so "quiet" never reads as "broken". */
+const inviteBtn='<button class="btn ghost sm" style="margin-top:14px;max-width:280px;margin-left:auto;margin-right:auto" onclick="invite()">Invite the car next to you →</button>';
+const widenBtn='<button class="btn ghost sm" style="margin-top:8px;max-width:280px;margin-left:auto;margin-right:auto" onclick="setRadius(2000)">Widen range to 2 km</button>';
+function emptyMsg(){
+  if(connState==='offline')return 'You’re offline. Messages won’t send or arrive until you’re back in signal.';
+  if(connState!=='live')return 'Linking to the road…';
+  if(nearby().length)return 'No one’s said anything yet. Break the ice.';
+  if(linkVerified())return `<b style="color:var(--txt)">You’re on the air — first one here.</b><br>Your signal’s going out and coming back; there’s just no other car in range yet. You’ll be the first they see.${inviteBtn}${S.radius<2000&&!S.lane.trim()?widenBtn:''}`;
+  return 'Getting you on the air…';
+}
 /* One glance = ~one short line. The compose/stopped view keeps the full text;
    only the moving READ surface is clipped, per the brief's 40-60 char cap. */
-const clip=(s,n)=>{s=String(s);return s.length>n?s.slice(0,n-1).replace(/\s+\S*$/,'')+'…':s;};
+/* Code-point aware: slicing by UTF-16 unit would bisect an emoji's surrogate pair
+   and leave a lone half that renders as "�" on the drive card and garbles TTS. */
+const cap=(s,n)=>{const a=[...String(s)];return a.length>n?a.slice(0,n).join(''):String(s);};
+const clip=(s,n)=>{const a=[...String(s)];return a.length>n?a.slice(0,n-1).join('').replace(/\s+\S*$/,'')+'…':String(s);};
 const DRIVE_MIN_MS=5000;   /* hard arrival-rate cap while moving: at most one card swap per 5s */
 let driveAt=0,driveTrailT=null;
 function paintDrive(el){
@@ -987,7 +1093,8 @@ function paintStream(){
   const el=document.getElementById('stream');
   if(!el)return;
   if(quiet){ /* panic-quiet: surface nothing until the user comes back */
-    el.innerHTML=`<div class="drive"><div class="who">Quiet</div><div class="txt">You won’t see new messages.</div></div>`;
+    const back=hushUntil?new Date(hushUntil).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'';
+    el.innerHTML=`<div class="drive"><div class="who">${hushUntil?'Hushed':'Quiet'}</div><div class="txt">${hushUntil?'Back on at '+back+'.':'You won’t see new messages.'}</div></div>`;
     return;
   }
   /* Driving: one message, large, solid, no scrollback. State-change renders paint
@@ -995,9 +1102,7 @@ function paintStream(){
      can't strobe the card. */
   if(moving){paintDrive(el);return;}
   if(!msgs.length){
-    el.innerHTML=`<div class="empty">${connState==='live'
-      ?(nearby().length?'No one’s said anything yet. Break the ice.':'No other cars in range yet. Lane only works where someone else has it open too.')
-      :'Linking to the road…'}</div>`;
+    el.innerHTML=`<div class="empty">${emptyMsg()}</div>`;
     return;
   }
   /* Only follow the tail if the user is already near it — don't yank someone
@@ -1007,14 +1112,18 @@ function paintStream(){
   el.innerHTML=msgs.map(m=>m.sys
     ?`<div class="msg sys"><div class="bub">${esc(m.txt)}</div></div>`
     :`<div class="msg ${m.mine?'mine':''}">${swatch(m.c)}
-       <div class="bub"><div class="who">${esc(m.mine?'You':label(m.id,m.c,m.b,dup))}<span class="when">${ago(m.ts)}</span></div>
+       <div class="bub"><div class="who">${esc(m.mine?'You':label(m.id,m.c,m.b,dup))}<span class="when" data-ts="${m.ts}">${ago(m.ts)}</span>${
+         m.mine?`<span class="tick ${m.delivered?'ok':''}" aria-label="${m.delivered?'delivered':'sending'}">${m.delivered?'✓':'·'}</span>`:''}</div>
        <div class="txt">${esc(m.txt)}</div></div></div>`).join('');
   const s=document.getElementById('stream');
   if(s&&nearBottom)s.scrollIntoView({block:'end'});
 }
-/* Age the timestamps without hijacking scroll: only when stopped and viewing the
-   stream, and paintStream now only follows the tail if you're already there. */
-setInterval(()=>{if(tab==='road'&&!moving&&!quiet&&msgs.length)paintStream();},20000);
+/* Age the timestamps in place — no innerHTML rebuild, so the newest bubble doesn't
+   re-animate and a text selection isn't destroyed every 20s. */
+setInterval(()=>{
+  if(tab!=='road'||moving||quiet)return;
+  document.querySelectorAll('#stream .when').forEach(e=>{e.textContent=ago(+e.dataset.ts);});
+},20000);
 
 /* ---- composer ---- */
 /* Client-side only, so trivially bypassable by anyone who opens devtools. It is
@@ -1046,16 +1155,18 @@ function driveDock(){
   return `<div class="drive-tiles">${DRIVE_TILES.map(i=>
     `<button class="tile ${TILES[i][1]}" onclick="quick(${i})">${esc(TILES[i][0])}</button>`).join('')}</div>
   <div class="drive-ctrls">
-    ${TTS_OK?`<button class="quiet-btn ${S.listen?'on':''}" onclick="toggleListen()">${S.listen?'Listening 🔊':'Listen'}</button>`:''}
+    ${TTS_OK?`<button class="quiet-btn ${S.listen&&armedThisSession?'on':''}" onclick="toggleListen()">${S.listen?(armedThisSession?'Listening 🔊':'Tap to hear'):'Listen'}</button>`:''}
     <button class="quiet-btn ${quiet?'on':''}" onclick="toggleQuiet()">${quiet?'Come back':'Quiet'}</button>
   </div>
-  <div class="locked"><b>${quiet?'Quiet.':S.listen?'Reading aloud.':locating()?'Finding you…':'You’re moving.'}</b><span>${quiet?'Tap above to come back.':S.listen?'Eyes on the road.':locating()?'Hang tight.':'Typing’s back when you stop.'}</span></div>`;
+  ${(!quiet&&!S.listen&&!locating()&&moveReason==='uncertain'&&!parked)?`<button class="quiet-btn" style="margin-top:9px" onclick="togParked()">Parked? Unlock typing</button>`:''}
+  <div class="locked"><b>${quiet?'Quiet.':S.listen?'Reading aloud.':locating()?'Finding you…':(moveReason==='uncertain'?'Can’t tell if you’re moving.':'You’re moving.')}</b><span>${quiet?'Tap above to come back.':S.listen?(IS_IOS?'Keep the screen on.':'Eyes on the road.'):locating()?'Hang tight.':(moveReason==='uncertain'?'Locked to be safe.':'Typing’s back when you stop.')}</span></div>`;
 }
 function stopDock(){
   const left=240-draft.length;
   return `<div class="tiles">${TILES.map((t,i)=>
     `<button class="tile ${t[1]}" onclick="quick(${i})">${esc(t[0])}</button>`).join('')}</div>
-  ${quiet?`<button class="quiet-btn on" style="margin-bottom:10px" onclick="toggleQuiet()">Quiet on · tap to come back</button>`:''}
+  ${quiet?`<button class="quiet-btn on" style="margin-bottom:10px" onclick="toggleQuiet()">${hushUntil?'Hushed · tap to come back':'Quiet on · tap to come back'}</button>`
+    :`<div class="tiles" style="padding-bottom:0;margin-bottom:8px"><button class="tile" onclick="hush()">Hush 15 min</button><button class="tile" onclick="toggleQuiet()">Quiet</button></div>`}
   ${heldDraft?`<button class="btn ghost sm" style="margin-bottom:10px" onclick="restore()">Finish your message?</button>`:''}
   <div class="row">
     <textarea id="ta" rows="1" maxlength="240" placeholder="Say it to the cars nearby…"
@@ -1074,10 +1185,39 @@ window.onType=el=>{
   if(cap){const over=draft.length>180;cap.style.display=over?'':'none';cap.textContent=(240-draft.length)+' left';}
 };
 window.restore=()=>{draft=heldDraft;heldDraft='';renderDock();const t=document.getElementById('ta');if(t){t.focus();t.setSelectionRange(t.value.length,t.value.length);}};
+/* Beat the network effect honestly: pull a specific person into a shared code —
+   the car in the next lane, or a friend — no fake presence anywhere. */
+window.invite=()=>{
+  if(!S.lane.trim()){S.lane=rid(6);save();lastCell=null;subbed=[];peers.clear();msgs=[];netStart();render();}
+  const url=location.origin+location.pathname+'#lane='+encodeURIComponent(S.lane.trim());
+  const share={title:'Lane',text:'Join my lane on Lane — we can talk car to car.',url};
+  if(navigator.share){navigator.share(share).catch(()=>{});}
+  else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(()=>toast('Invite link copied'),()=>inviteSheet(url));}
+  else inviteSheet(url);
+};
+window.doInstall=()=>{if(installEvt){installEvt.prompt();installEvt=null;render();}};
+function inviteSheet(url){
+  openSheet(`<h3>Invite a car</h3>
+   <p style="font-size:.86rem;color:var(--txt-2);margin-bottom:14px">Anyone who opens this link joins your lane <b>“${esc(S.lane.trim())}”</b> — location is ignored, so it works for the car beside you or a friend across town.</p>
+   <input type="text" readonly value="${esc(url)}" onclick="this.select()" style="font-size:.8rem">
+   <button class="btn sm" style="margin-top:12px" onclick="(navigator.clipboard&&navigator.clipboard.writeText)?navigator.clipboard.writeText('${esc(url)}').then(()=>toast('Copied')):toast('Select and copy the link')">Copy link</button>`);
+}
 window.toggleQuiet=()=>{
   quiet=!quiet;
   if(quiet)stopSpeech();   /* Quiet silences everything, including anything mid-sentence */
+  else{hushUntil=0;if(hushT){clearTimeout(hushT);hushT=null;}}  /* manual come-back also ends a hush */
   toast(quiet?'Quiet on — nothing will surface':'Quiet off');
+  renderDock();paintStream();
+  if(tab!=='road')render();
+};
+/* A gentler, self-lifting alternative to the panic Quiet: mute for 15 min and
+   come back on its own. */
+let hushUntil=0,hushT=null;
+window.hush=()=>{
+  hushUntil=Date.now()+900000;quiet=true;stopSpeech();
+  if(hushT)clearTimeout(hushT);
+  hushT=setTimeout(()=>{hushUntil=0;hushT=null;quiet=false;toast('Back on');renderDock();paintStream();if(tab!=='road')render();},900000);
+  toast('Hushed for 15 min');
   renderDock();paintStream();
   if(tab!=='road')render();
 };
@@ -1085,10 +1225,13 @@ window.toggleListen=()=>{
   if(!TTS_OK){toast('Read-aloud isn’t supported here');return;}
   S.listen=!S.listen;save();
   if(S.listen){
-    /* This tap is the user gesture some engines require before they'll speak. */
+    /* This tap is the user gesture engines require before they'll speak; it also
+       arms Listen for the session and holds the screen so iOS won't suspend it. */
+    armedThisSession=true;
     try{speechSynthesis.resume();}catch(e){}
     speak('Listening. Messages read aloud.');
-    toast('Listening — messages read aloud');
+    acquireWake();
+    toast(IS_IOS?'Listening — keep the screen on':'Listening — messages read aloud');
   }else{
     stopSpeech();
     toast('Listening off');
@@ -1104,16 +1247,17 @@ window.sendNow=()=>{
 };
 function push(txt){
   if(S.car.color<0){toast('Pick your car first');return false;}
+  if(connState==='offline'){toast('You’re offline — not sent');return false;}
   if(connState!=='live'){toast('Not connected yet');return false;}
   if(!S.lane.trim()&&!pos){toast('Waiting for location');return false;}
   const cd=cooldown();
   if(cd){toast(cd);return false;}
-  const ts=Date.now();
-  const ok=pub({v:1,k:'msg',id:MYID,c:S.car.color,b:S.car.body,
-    la:wireLat(),lo:wireLng(),t:txt.slice(0,240),ts});
+  const ts=Date.now(),body=cap(txt,240);
+  const ok=pub({v:1,k:'msg',id:MYID,c:S.car.color,b:S.car.body,la:wireLat(),lo:wireLng(),t:body,ts});
   if(!ok){toast('Message didn’t go out');return false;}
   sendLog.push(ts);
-  addMsg({id:MYID,c:S.car.color,b:S.car.body,txt:txt.slice(0,240),ts,mine:true});
+  haptic(15);   /* felt 'sent' tick on Android; no-op on iOS */
+  addMsg({id:MYID,c:S.car.color,b:S.car.body,txt:body,ts,mine:true,delivered:false});
   return true;
 }
 
@@ -1131,7 +1275,7 @@ function rPick(){
 }
 window.setColor=i=>{S.car.color=i;save();render();};
 window.setBody=i=>{S.car.body=i;save();render();};
-window.startDriving=()=>{render(true);sayHey();};
+window.startDriving=()=>{render(true);acquireWake();sayHey();};
 
 /* ============ CARS ============ */
 function ringHTML(n){
@@ -1157,7 +1301,7 @@ function rCars(){
     ${S.car.color>=0?`<div class="cell wide"><span class="lbl">You are</span>
       <div style="display:flex;align-items:center;gap:12px">${swatch(S.car.color)}
         <div><b style="font-size:1.1rem">${esc(COLORS[S.car.color][0]+' '+BODIES[S.car.body])}</b>
-        <small>${S.lane.trim()?'private lane · '+esc(S.lane.trim()):myCell()?'cell '+esc(myCell()):'no fix yet'}</small></div></div></div>`:''}
+        <small>${S.lane.trim()?'shared code · '+esc(S.lane.trim()):myCell()?'cell '+esc(myCell()):'no fix yet'}</small></div></div></div>`:''}
   </div>
   ${list.length?list.map(p=>`<div class="card" style="padding:15px 17px">
     <div style="display:flex;align-items:center;gap:12px">${swatch(p.c)}
@@ -1165,7 +1309,9 @@ function rCars(){
         <small class="mono" style="display:block;color:var(--txt-info);margin-top:3px">${esc(band(p.d)||'in range')}</small></div>
       <button class="chip" style="min-height:44px;padding:11px 18px;font-size:.78rem" data-mute="${esc(p.id)}" aria-pressed="${MUTED.has(p.id)}">${MUTED.has(p.id)?'Unmute':'Mute'}</button>
     </div></div>`).join('')
-   :`<div class="empty">Nobody else yet.<br><br>Lane needs another car with the app open and a signal. It won’t invent traffic that isn’t there.</div>`}
+   :`<div class="empty">${connState==='offline'?'You’re offline. Lane can’t see any cars until you’re back in signal.'
+      :linkVerified()?`<b style="color:var(--txt)">You’re on the air — nobody else yet.</b><br>Lane won’t invent traffic that isn’t there. Pull someone in, or widen your range.${inviteBtn}${S.radius<2000&&!S.lane.trim()?widenBtn:''}`
+      :'Lane needs another car with the app open and a signal. It won’t invent traffic that isn’t there.'}</div>`}
   <p class="note">Muting lasts for this session. Everyone’s ID changes every time they open the app, so a mute can’t follow someone across drives — that’s the cost of nobody being able to build a grudge against you either.</p>`;
 }
 function toggleMute(id){
@@ -1205,14 +1351,18 @@ function rMe(){
       <button class="sw-t ${parked?'on':''}" role="switch" aria-checked="${parked}" aria-labelledby="lbl-parked" onclick="togParked()"><i></i></button></div>
     <div class="srow"><div class="k" id="lbl-sound">Sound<small>A blip when a message lands while you’re stopped.</small></div>
       <button class="sw-t ${S.sound?'on':''}" role="switch" aria-checked="${S.sound}" aria-labelledby="lbl-sound" onclick="togSound()"><i></i></button></div>
+    ${'wakeLock'in navigator?`<div class="srow"><div class="k" id="lbl-awake">Keep screen awake
+      <small>Stops your phone sleeping while Lane is open, so a glance at a light always works and the connection stays alive. Uses more battery.</small></div>
+      <button class="sw-t ${S.keepAwake?'on':''}" role="switch" aria-checked="${S.keepAwake}" aria-labelledby="lbl-awake" onclick="togAwake()"><i></i></button></div>`:''}
     <div class="srow"><div class="k" id="lbl-listen">Read aloud${TTS_OK?'':' <span class="mono" style="color:var(--txt-3)">· not supported here</span>'}
-      <small>Hands-free. Incoming messages are spoken so you never look at the screen — the safest way to use this while driving. Also on the Road screen’s <b>Listen</b> button.</small></div>
+      <small>Hands-free — incoming messages are spoken to you. ${IS_IOS?'On iPhone, keep Lane open with the screen on; it stops reading if you leave the app or the screen sleeps.':'Lets you keep your eyes on the road.'} Also on the Road screen’s <b>Listen</b> button.</small></div>
       <button class="sw-t ${S.listen?'on':''}" role="switch" aria-checked="${S.listen}" aria-labelledby="lbl-listen" ${TTS_OK?'':'disabled style="opacity:.4"'} onclick="toggleListen()"><i></i></button></div>
   </div>
   <div class="card">
-    <span class="lbl">Private lane</span>
+    <span class="lbl">Shared code</span>
     <input type="text" placeholder="a word you both know" value="${esc(S.lane)}" onchange="setLane(this.value)">
-    <p class="note">Leave it empty for real traffic around you. Fill it in and you only see people who typed the same word — location is ignored, and none is sent. Handy for testing with a friend, or a convoy.</p>
+    <p class="note">Leave it empty for the real traffic around you. Fill in a word and you’ll only see people who typed the same one — location is ignored, wherever they are. It’s a channel name, not a password: pick something only your group would guess, and it still rides the public relay, so don’t treat it as secret. Handy for a convoy, or testing with a friend.</p>
+    <button class="btn ghost sm" style="margin-top:10px" onclick="invite()">Share an invite link</button>
   </div>
   <div class="card">
     <span class="lbl">Relay</span>
@@ -1221,6 +1371,12 @@ function rMe(){
     <input type="text" placeholder="or your own wss://host:port/mqtt" value="${esc(S.customBroker)}" onchange="setCustom(this.value)">
     <p class="note">Currently on <b>${esc(brokerName())}</b>. These are free public MQTT brokers — <b>anyone can listen to them</b>. Lane rounds your position to about 55 m before sending and never sends a name, but don’t type anything here you’d mind a stranger reading. Point it at your own broker if you want it private.</p>
   </div>
+  ${!isInstalled()&&(installEvt||IS_IOS)?`<div class="card">
+    <span class="lbl">Add to home screen</span>
+    <p class="note" style="margin-top:0">Opens like an app, launches faster, and keeps working the moment you next stop.</p>
+    ${installEvt?`<button class="btn sm" style="margin-top:12px" onclick="doInstall()">Add Lane</button>`
+      :`<p class="note" style="margin-top:10px"><b>Tap Share, then “Add to Home Screen.”</b></p>`}
+  </div>`:''}
   <div class="card">
     <span class="lbl">Safety</span>
     <button class="btn ghost sm" onclick="showGate(true)">Read the safety notice again</button>
@@ -1230,7 +1386,7 @@ function rMe(){
     <div class="srow"><div class="k">Reset everything<small>Clears your car, your settings and the safety notice. Messages were never saved in the first place.</small></div></div>
     <button class="btn danger sm" style="margin-top:12px" onclick="wipe()">Reset</button>
   </div>
-  <p class="note" style="text-align:center;padding-bottom:8px">Nothing you say is stored anywhere — not on your phone, not on a server. Messages fade after a few minutes and are gone for good.</p>`;
+  <p class="note" style="text-align:center;padding-bottom:8px">We never store what you say — but it travels over a public relay anyone can listen to, so don’t send anything you’d mind a stranger reading. Messages fade in minutes and are gone.</p>`;
 }
 window.setRadius=r=>{S.radius=r;save();peers.clear();render();};
 window.togParked=()=>{
@@ -1239,6 +1395,7 @@ window.togParked=()=>{
   evalMotion();renderDock();render();
 };
 window.togSound=()=>{S.sound=!S.sound;save();render();};
+window.togAwake=()=>{S.keepAwake=!S.keepAwake;save();if(S.keepAwake)acquireWake();else releaseWake();render();};
 window.setLane=v=>{S.lane=v.trim().slice(0,24);save();peers.clear();msgs=[];lastCell=null;subbed=[];netStart();render();};
 window.setBroker=i=>{S.broker=i;S.customBroker='';save();retry=0;netStart();render();};
 window.setCustom=v=>{S.customBroker=v.trim().slice(0,200);save();retry=0;netStart();render();};
@@ -1297,8 +1454,10 @@ function safetyBody(){
    <ol>
     <li><b>Lane locks itself when you’re moving.</b> It can be wrong. You’re still the one driving.</li>
     <li><b>Everyone here can see your car.</b> Assume they know which message was yours.</li>
+    <li><b>It’s public and it’s gone.</b> Messages ride a shared public relay — anyone can listen — and nothing is stored; they fade in minutes.</li>
     <li><b>If someone gets under your skin, put the phone down.</b> Nobody wins that one.</li>
-   </ol>`;
+   </ol>
+   <p style="margin-top:14px;font-size:.84rem;color:var(--txt-3)">You’re 18+ and you’re responsible for how you use this.</p>`;
 }
 function gateOnly(){
   return `${safetyBody()}
@@ -1320,6 +1479,7 @@ function onbStepHTML(){
     <div class="card" style="margin-top:24px;display:flex;align-items:center;gap:13px">
       ${swatch(S.car.color<0?0:S.car.color)}<b style="font-size:1.05rem;letter-spacing:-.03em">${esc((S.car.color<0?'':COLORS[S.car.color][0]+' ')+BODIES[S.car.body])}</b></div>
     <p style="margin-top:16px">Next, your phone will ask for location — Lane uses it only to find the cars right around you, and never sends your exact spot.</p>
+    <p style="margin-top:10px;font-size:.84rem;color:var(--txt-3)">Lane is only as busy as the road you’re on. If it’s quiet at first, that’s normal — you might be the first car here.</p>
     <button class="btn" style="margin-top:16px" onclick="onbDone()">Start driving →</button>
     <button class="skip" onclick="onbBack()">Back</button>`;
 }
@@ -1327,7 +1487,7 @@ window.onbNext=()=>{if(onbStep===1&&S.car.color<0)return;onbStep=Math.min(2,onbS
 window.onbBack=()=>{onbStep=Math.max(0,onbStep-1);showGate();};
 window.onbColor=i=>{S.car.color=i;save();showGate();};
 window.onbBody=i=>{S.car.body=i;save();showGate();};
-window.onbDone=()=>{S.gate=GATE_V;save();hideGate();render(true);startGeo();sayHey();};
+window.onbDone=()=>{S.gate=GATE_V;save();hideGate();render(true);startGeo();acquireWake();sayHey();};
 window.hideGate=()=>{document.getElementById('gate').classList.remove('show');};
 
 /* ============ BOOT ============ */
@@ -1338,6 +1498,7 @@ render(true);
 if(S.gate!==GATE_V)showGate();
 else startGeo();
 netStart();
+if(joinedLane)setTimeout(()=>toast('Joined lane “'+joinedLane+'”'),400);
 </script>
 </body>
 </html>
