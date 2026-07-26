@@ -451,7 +451,10 @@ let joinedLane='';
     const mt=(location.hash||'').match(/[#&](?:lane|l)=([a-z0-9-]{1,24})/i);
     if(mt){
       const code=decodeURIComponent(mt[1]).toLowerCase().slice(0,24);
-      if(code&&code!==S.lane){S.lane=code;save();joinedLane=code;}
+      /* Arriving in the standing room by link has to remember the code you were
+         on the same way the button does, or leaving drops you into proximity
+         mode and starts broadcasting a position you had switched off. */
+      if(code&&code!==S.lane){if(code===MEET.code)S.prevLane=S.lane;S.lane=code;save();joinedLane=code;}
       history.replaceState(null,'',location.pathname+location.search);
     }
   }catch(e){}
@@ -1605,7 +1608,7 @@ render(true);
 if(S.gate!==GATE_V)showGate();
 else startGeo();
 netStart();
-if(joinedLane)setTimeout(()=>toast('Joined lane “'+joinedLane+'”'),400);
+if(joinedLane)setTimeout(()=>toast(joinedLane===MEET.code?'You’re in '+MEET.name:'Joined lane “'+joinedLane+'”'),400);
 </script>
 </body>
 </html>
