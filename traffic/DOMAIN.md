@@ -1,70 +1,119 @@
-# Putting Lane on its own domain
+# Getting Lane a real URL
 
-Right now Lane lives at `https://meelie24.github.io/daily/traffic/`. That works,
-but it's a bad link to hand to strangers: it names someone's GitHub account, it
-buries the app two folders deep, and it doesn't look like a product.
+Lane lives at `https://meelie24.github.io/daily/traffic/`. That works, but it's a
+bad link to hand a stranger: it names someone's GitHub account, it buries the app
+two folders deep, and it doesn't look like a product.
 
-There is one thing to sort out before any of the DNS below matters.
+**Use Cloudflare Pages.** It's free, it needs no card, and it's the only free
+option that also fixes the folder problem. You end up at `https://lane.pages.dev/`
+with the app at the bare root.
 
-## The repo layout problem, first
+## Why this and not GitHub Pages
 
-A GitHub Pages custom domain attaches to the **whole Pages site**, not to a folder
-inside it. This repo publishes its root, and its root is the GLP-1 Companion app.
-So if you point `lane.example` at this repo today, you get:
+A Pages custom domain attaches to the whole site, not to a folder, and one repo
+publishes exactly one site. This repo's root is the GLP-1 app. So on GitHub Pages
+the two apps compete for the same root, and promoting `traffic/` takes the other
+one offline.
 
-* `lane.example/` → GLP-1 Companion
-* `lane.example/traffic/` → Lane
+Cloudflare Pages has a per-project **Root directory** setting. Point one project
+at `traffic/` and that folder becomes the site root. The GLP-1 app and the
+existing `meelie24.github.io/daily/traffic/` URL both keep working untouched,
+because GitHub Pages isn't changed at all. Two hosts, same repo, no file moves,
+no new repo, no CNAME committed.
 
-Which is worse than what we have now. Pick one:
+## Setting it up
 
-**A. Give Lane its own repo (recommended).** Make a new empty repo, put
-`index.html` and `og.png` at its root, turn Pages on, attach the domain. `daily`
-carries on untouched and both apps keep working. From a clone of this repo:
+**Make the account.** `dash.cloudflare.com/sign-up`, email and password, confirm
+the email. Skip the upsells. Do not add a domain or a zone.
+
+**Make the project.**
+
+1. Sidebar → **Compute (Workers & Pages)** → **Create** → the **Pages** tab →
+   **Connect to Git**.
+2. **Connect GitHub**, choose **Only select repositories**, pick `meelie24/daily`,
+   **Install & Authorize**.
+3. Select **daily** → **Begin setup**.
+4. **Project name:** `lane`. Read the next section before you type this.
+5. **Production branch:** `main`.
+6. Expand **Build settings**:
+   * **Framework preset:** None
+   * **Build command:** leave completely empty
+   * **Build output directory:** `/`
+   * **Root directory (advanced)** → **Path:** `traffic`
+
+   Don't put `traffic` in both. The output directory resolves *relative to* the
+   root directory, so `traffic` plus `traffic` looks for `traffic/traffic` and the
+   build fails.
+7. **Save and Deploy.** About thirty seconds.
+
+Then check all three: `lane.pages.dev` serves Lane at the root,
+`meelie24.github.io/daily/` still serves the GLP-1 app, and
+`meelie24.github.io/daily/traffic/` still serves Lane.
+
+## The name is permanent
+
+The `pages.dev` subdomain can't be renamed. Changing it means deleting the
+project and creating a new one. The name is also global, so if `lane` is gone
+Cloudflare will either error or offer you something like `lane-e5f.pages.dev`.
+Never accept the hashed suggestion, it looks like a staging URL. Keep typing
+names until one takes cleanly. `lanechat`, `lane-app` and `drivelane` are the
+obvious fallbacks.
+
+## Repoint the preview tags
+
+Three absolute URLs in the `<head>` of `index.html`: `canonical`, `og:url` and
+`og:image`. They're absolute because crawlers don't run our JS, which also means
+nothing catches it if you forget. The card just quietly stops appearing.
 
 ```sh
-mkdir -p ~/lane && cp traffic/index.html traffic/og.png ~/lane/
-cd ~/lane && git init -b main && git add -A
-git commit -m "Lane"
-git remote add origin git@github.com:<you>/lane.git
-git push -u origin main
+sed -i 's|https://meelie24.github.io/daily/traffic/|https://lane.pages.dev/|g' traffic/index.html
+grep -n 'canonical\|og:url\|og:image' traffic/index.html    # expect 3 lines, all the new host
 ```
 
-Then **Settings → Pages → Build and deployment → Deploy from a branch → `main` /
-`(root)`**.
+The trailing slash matters. Drop it and `og:image` becomes
+`https://lane.pages.devog.png`.
 
-**B. Make Lane the root of this repo.** Move `traffic/index.html` to the repo root
-and the GLP-1 app down into a folder. Fewer moving parts, but the GLP-1 app's URL
-changes and any existing link to it breaks. Only do this if nobody has that link.
+Commit and merge to `main`. Cloudflare redeploys on push by itself.
 
-Either way, once Lane is at a site root, the absolute URLs in the `<head>` of
-`index.html` need repointing — `canonical`, `og:url` and `og:image`. They're
-absolute because crawlers don't run our JS and can't work them out at load time,
-which also means nothing catches it if you forget. The card just silently stops
-appearing.
+Then text the link to yourself and check the card renders. Facebook and LinkedIn
+cache hard and have re-scrape buttons in their sharing debuggers; X usually
+expires within a day.
 
-```sh
-sed -i 's|https://meelie24.github.io/daily/traffic/|https://lane.example/|g' traffic/index.html
-grep -n 'og:url\|og:image\|canonical' traffic/index.html      # eyeball all four
-```
+## Worth 20 seconds
 
-Note the trailing slashes: the old value ends in one and so must the new, or
-`og:image` comes out as `https://lane.exampleog.png`.
+Project → **Settings** → **Builds** → **Build watch paths** → include
+`traffic/*`. Otherwise every push touching the GLP-1 app rebuilds Lane for
+nothing, and the 500 builds a month is an account-wide budget, not a per-project
+one.
 
-## Buying the name
+## What not to use, and why
 
-Cloudflare Registrar sells at cost with no first-year-cheap-then-triple trick;
-a `.com` is about $10–11/yr. Porkbun and Namecheap are fine too. You do not need
-Cloudflare's DNS to use their registrar, and you do not need their registrar to
-use their DNS.
+* **Freenom (.tk, .ml, .ga, .cf, .gq).** Dead. Registrations stopped in 2023 and
+  ICANN terminated the accreditation. Listicles still recommend it.
+* **js.org.** Alive and well run, but Lane doesn't qualify. The rule is that the
+  site must be *directly about* the JavaScript ecosystem; being written in
+  JavaScript is explicitly not a qualification, and product pages are named as
+  rejections.
+* **is-a.dev.** Same eligibility problem, plus a technical dead end: you never
+  hold the DNS, so the merged CNAME won't attach to Cloudflare Pages, which
+  refuses it with Error 1014.
+* **Vercel Hobby.** Free, but the terms restrict it to non-commercial projects.
+  Also, Deployment Protection is on by default and serves crawlers a login page,
+  so link previews fail outright.
+* **Netlify.** Works the same way (Publish directory `traffic`, no build command)
+  and commercial use is fine, but new accounts get 300 credits a month and the
+  site goes **offline** when they run out. A hard quota is the wrong failure mode
+  for a link that only matters when it spreads.
+* **thedev.id.** 318 open pull requests and nobody merging.
+* **eu.org.** Free forever, but approval takes days to months.
 
-Short and sayable beats clever. Someone is going to read this off a phone screen
-in a car park.
+## If you ever buy a real domain
 
-## DNS
+Cloudflare Registrar sells at cost, about $10 to $11 a year for a `.com`. Porkbun
+and Namecheap are fine too. Attaching one to the Pages project is a few clicks in
+**Custom domains** and Cloudflare handles the certificate.
 
-Two records to think about: the apex (`lane.example`) and `www`.
-
-**Apex.** Four A records and four AAAA records, all with host `@`:
+If instead you attach a domain to **GitHub Pages**, you need the apex records:
 
 | Type | Host | Value |
 |---|---|---|
@@ -77,47 +126,12 @@ Two records to think about: the apex (`lane.example`) and `www`.
 | AAAA | @ | 2606:50c0:8002::153 |
 | AAAA | @ | 2606:50c0:8003::153 |
 
-Add all eight. The IPv6 ones are not optional in 2026 — a chunk of mobile
-networks are IPv6-only, and those are exactly the people using this.
+Plus a CNAME on `www` pointing at `<you>.github.io`. Add all eight apex records;
+the IPv6 ones aren't optional when a chunk of mobile networks are IPv6-only, and
+those are exactly the people using this.
 
-**www.** One CNAME, host `www`, value `<you>.github.io` (with the trailing dot if
-your provider wants one). Note it's the account subdomain, *not* the full page
-URL.
-
-Then in **Settings → Pages → Custom domain**, type the domain and save. That
-writes a `CNAME` file into the repo, which is how Pages knows the site answers to
-that name. Tick **Enforce HTTPS** once it lets you.
-
-### If you're on Cloudflare DNS, read this bit
-
-Set both records to **DNS only** — the grey cloud, not the orange one. Proxying
-sits in front of Let's Encrypt's validation request, GitHub never sees the
-challenge answered, and the certificate silently never issues. You get a Pages
-settings page stuck on "certificate in progress" with nothing explaining why.
-
-Grey cloud, wait for the cert, and leave it grey. The proxy buys you nothing here
-— Pages already has a CDN in front of it.
-
-### Waiting
-
-DNS propagation is usually minutes and occasionally an hour. The certificate is
-issued after DNS resolves, so if **Enforce HTTPS** is greyed out, the answer is
-almost always "wait longer", not "something is broken". Check what the world
-actually sees rather than what your own browser cached:
-
-```sh
-dig +short lane.example
-dig +short AAAA lane.example
-curl -sSI https://lane.example | head -1
-```
-
-## After it's live
-
-* Re-check the link preview — paste the URL into a DM to yourself. If the card
-  doesn't show, the `og:image` URL is still pointing at the old host.
-* Facebook and LinkedIn cache aggressively. Their sharing debuggers have a
-  re-scrape button. X caches too but usually expires within a day.
-* Keep `meelie24.github.io/daily/traffic/` working if you've already sent it to
-  anyone. GitHub redirects the old Pages URL to the custom domain automatically
-  once the domain is attached to that same repo; if Lane moved repos, leave a
-  one-line redirect stub behind instead.
+**On Cloudflare DNS, set them to DNS only, the grey cloud.** Proxying sits in
+front of Let's Encrypt's validation, GitHub never sees the challenge answered,
+and the certificate silently never issues. You get a settings page stuck on
+"certificate in progress" with nothing explaining why. Leave it grey; Pages
+already has a CDN in front of it.

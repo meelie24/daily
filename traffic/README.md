@@ -136,7 +136,7 @@ You need two devices. It won't invent traffic that isn't there.
 |---|---|
 | `traffic/index.html` | The whole app |
 | `traffic/og.png` | The 1200×630 card the link unfurls as |
-| `traffic/DOMAIN.md` | Moving it to a real domain |
+| `traffic/DOMAIN.md` | Getting it a real URL, free |
 | `traffic/LAUNCH.md` | Where to launch it, and the copy |
 | `announce/` | Posts the launch queue to one X account on a schedule |
 | `.github/workflows/pages.yml` | Deploys the repo to GitHub Pages on push to main |
