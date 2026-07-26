@@ -23,6 +23,14 @@ The square size is fixed and deliberately not tied to the Range setting. If it
 were, two cars parked side by side with different Range settings would end up in
 different rooms and never see each other.
 
+One limit worth knowing, because a geohash square keeps a constant span in
+degrees and degrees of longitude get shorter towards the poles. At the equator a
+square is about 4.9 km wide, at 60° it's 2.4 km, and past roughly **66°** the
+nine squares stop covering the full 2 km range from east to west. So above the
+Arctic Circle, two cars near the far end of that range on an east-west line can
+miss each other. Everywhere with meaningful traffic is well inside it, and the
+tests state the bound rather than sampling below it and calling that a pass.
+
 Transport is MQTT over a WebSocket, hand written in about 90 lines so the page
 doesn't need a CDN. QoS 0 only, because a chat message that turns up late is
 worthless anyway.
@@ -44,6 +52,45 @@ Lane is built on that assumption rather than pretending otherwise:
 
 A **shared code** (any word both of you type) ignores location completely and
 publishes no coordinates at all. Good for a convoy, or for testing with a friend.
+
+## The Lane Hour
+
+Proximity chat has a cold start problem it can't solve on its own. The first
+person to open it anywhere is alone, decides it's dead, and doesn't come back.
+
+So there's one room, at 19:00 UTC every day, for everyone. It's an ordinary
+shared code (`lane-hour`) that the app knows about, which means location is
+ignored inside it and nothing about where you are goes on the wire. The app shows
+it in your own local time and offers it where you're already looking at an empty
+room, rather than as a banner.
+
+The instant is fixed in UTC deliberately. A room "at 8pm local" would be
+twenty-four separate rooms with one person in each, which is the original problem
+wearing a hat.
+
+Joining remembers whatever code you were on, so leaving puts you back rather than
+quietly switching your position broadcast back on.
+
+## Voice notes
+
+Six seconds, one tap, only while you're stopped.
+
+This is the one part of Lane that isn't anonymous, and the app says so in as many
+words before your first recording. It's your actual voice, going out over the
+same public relay as everything else, to people who can also see which car it
+came from. A voice identifies you far more precisely than a colour and a shape
+do. Nothing is disguised, and pretending otherwise would be worse than saying it.
+
+Everything else follows the rules typing already follows. The mic disappears
+while you're moving, a green light mid-recording bins the take rather than
+sending half a sentence, and Quiet kills playback and recording together. In
+Listen mode an incoming note plays itself, since not looking at the screen is the
+entire point; outside Listen mode it waits for a tap, because unprompted audio
+from a stranger is startling if you didn't ask for it.
+
+Chrome records Opus in WebM and Safari records AAC in MP4, and Safari can't play
+the first. Where that happens the bubble says so instead of showing a play button
+that does nothing.
 
 ## Safety, and what it cost
 
@@ -117,5 +164,13 @@ You need two devices. It won't invent traffic that isn't there.
 | Path | What |
 |---|---|
 | `traffic/index.html` | The whole app |
+| `traffic/og.png` | The 1200×630 card the link unfurls as |
+| `traffic/DOMAIN.md` | Getting it a real URL, free |
+| `traffic/LAUNCH.md` | Where to launch it, and the copy |
+| `announce/` | Posts the launch queue to one X account on a schedule |
 | `.github/workflows/pages.yml` | Deploys the repo to GitHub Pages on push to main |
 | `index.html` | A different app that already lived in this repo, untouched |
+
+The link preview tags in `<head>` are absolute URLs pointing at the GitHub Pages
+host. Crawlers don't run JavaScript, so those can't be worked out at load time —
+if the app moves, they get edited by hand. `DOMAIN.md` says which ones.

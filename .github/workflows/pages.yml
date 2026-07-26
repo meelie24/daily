@@ -3,6 +3,10 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+    # The announcer commits its own state file back to main after it posts.
+    # Nothing about that changes the site, so it should not trigger a deploy.
+    paths-ignore:
+      - 'announce/**'
   workflow_dispatch:
 
 # Least privilege the deploy needs.
