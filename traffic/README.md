@@ -55,6 +55,13 @@ app says so on first launch and does not pretend otherwise. What it enforces:
 - **Green-light interrupt.** Start moving mid-sentence and the composer blanks —
   the draft is held, not lost, and offered back at the next stop.
 - **One message at a time while moving**, large, no scrollback, no unread counter.
+- **Listen mode.** One tap (on the Road screen or in settings) and incoming
+  messages are read aloud via the browser's speech synthesis, so you never look at
+  the screen — the safest way to use this while driving. The spoken text is
+  clipped, the queue is capped so a burst can't read out minutes of backlog, and
+  it degrades silently where the Web Speech API is absent.
+- **Quiet.** One tap silences everything — surfacing and speech — with an obvious
+  way back, reachable from the driving surface.
 - **Parked** is re-armed every session, never persisted, and switches itself off
   the moment you move.
 
@@ -135,8 +142,8 @@ verification of the high-severity findings drove a round of fixes:
 Deliberately **not** changed (product calls, not defects): free typing stays
 allowed when stopped (canned-only would be safer but isn't what this is);
 `Cops ahead` ships without jurisdiction gating; there's no server, so no
-cross-session bans or content ML. A hands-free TTS "listen" mode is the main thing
-still worth building.
+cross-session bans or content ML. (The hands-free TTS "listen" mode flagged here
+as the main thing worth building has since been built — see Listen mode above.)
 
 ## Testing it
 

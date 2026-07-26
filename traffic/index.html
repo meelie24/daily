@@ -162,6 +162,9 @@ input,textarea{font-family:inherit;font-size:1rem;color:var(--txt)}
   background:var(--glass-2);border:1px solid var(--line-2);color:var(--txt);margin-top:9px}
 .quiet-btn.on{background:var(--lime);color:#000;border-color:var(--lime)}
 .quiet-btn:active{transform:scale(.98)}
+/* Listen + Quiet side by side while moving — both big, both one tap. */
+.drive-ctrls{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.drive-ctrls .quiet-btn{margin-top:0}
 .row{display:flex;gap:9px;align-items:flex-end}
 .row textarea{flex:1;min-width:0;background:var(--glass);border:1px solid var(--line);border-radius:1.5rem;
   padding:14px 16px;font-size:1rem;letter-spacing:-.01em;resize:none;max-height:96px;min-height:52px;line-height:1.35;outline:none}
@@ -337,7 +340,7 @@ const TILES=[
 /* Shown while moving: hazard reports only, one tap, no reading required. */
 const DRIVE_TILES=[4,5,6,7,10];
 
-const blank=()=>({car:{color:-1,body:0},radius:500,lane:'',broker:0,customBroker:'',gate:0,sound:true});
+const blank=()=>({car:{color:-1,body:0},radius:500,lane:'',broker:0,customBroker:'',gate:0,sound:true,listen:false});
 let S=load();
 function load(){
   try{
@@ -721,7 +724,10 @@ function addMsg(m){
   if(!m.mine&&!quiet){
     const sr=document.getElementById('sr');
     if(sr)sr.textContent=(m.mine?'You':carName(m))+': '+m.txt;   /* announced once, no history re-read */
-    if(!moving&&S.sound)blip();
+    /* Listen mode is the eyes-off channel and replaces the blip; clip so a long
+       message doesn't hold the road's attention. */
+    if(S.listen)speak(carName(m)+'. '+clip(m.txt,90));
+    else if(!moving&&S.sound)blip();
   }
 }
 /* GC: drop peers that stopped heartbeating and messages past their TTL. */
@@ -836,6 +842,27 @@ function blip(){
     o.stop(actx.currentTime+.17);
   }catch(e){}
 }
+
+/* ============ LISTEN MODE (hands-free / eyes-off) ============ */
+/* Reads incoming messages aloud so a driver never has to look at the screen —
+   the safest mode there is. Web Speech, no network, degrades silently where the
+   API is absent. */
+const TTS_OK=typeof window!=='undefined'&&'speechSynthesis'in window&&'SpeechSynthesisUtterance'in window;
+let ttsPending=0;
+function speak(text){
+  if(!TTS_OK||!text)return;
+  if(ttsPending>=2)return;   /* drop the excess — a burst must not queue minutes of speech */
+  try{
+    const u=new SpeechSynthesisUtterance(text);
+    u.rate=1.05;u.lang='en-US';
+    ttsPending++;
+    let released=false;const done=()=>{if(released)return;released=true;ttsPending=Math.max(0,ttsPending-1);};
+    u.onend=done;u.onerror=done;
+    speechSynthesis.speak(u);
+    setTimeout(done,9000);   /* some mobile engines never fire onend; don't wedge the queue */
+  }catch(e){}
+}
+function stopSpeech(){try{speechSynthesis.cancel();}catch(e){}ttsPending=0;}
 
 /* ============ SHARED BITS ============ */
 const carName=p=>COLORS[p.c][0]+' '+BODIES[p.b];
@@ -1018,8 +1045,11 @@ addEventListener('resize',fitBottom);
 function driveDock(){
   return `<div class="drive-tiles">${DRIVE_TILES.map(i=>
     `<button class="tile ${TILES[i][1]}" onclick="quick(${i})">${esc(TILES[i][0])}</button>`).join('')}</div>
-  <button class="quiet-btn ${quiet?'on':''}" onclick="toggleQuiet()">${quiet?'Quiet on · tap to come back':'Quiet'}</button>
-  <div class="locked"><b>${quiet?'Quiet.':locating()?'Finding you…':'You’re moving.'}</b><span>${quiet?'Tap above to come back.':locating()?'Hang tight.':'Typing’s back when you stop.'}</span></div>`;
+  <div class="drive-ctrls">
+    ${TTS_OK?`<button class="quiet-btn ${S.listen?'on':''}" onclick="toggleListen()">${S.listen?'Listening 🔊':'Listen'}</button>`:''}
+    <button class="quiet-btn ${quiet?'on':''}" onclick="toggleQuiet()">${quiet?'Come back':'Quiet'}</button>
+  </div>
+  <div class="locked"><b>${quiet?'Quiet.':S.listen?'Reading aloud.':locating()?'Finding you…':'You’re moving.'}</b><span>${quiet?'Tap above to come back.':S.listen?'Eyes on the road.':locating()?'Hang tight.':'Typing’s back when you stop.'}</span></div>`;
 }
 function stopDock(){
   const left=240-draft.length;
@@ -1046,9 +1076,25 @@ window.onType=el=>{
 window.restore=()=>{draft=heldDraft;heldDraft='';renderDock();const t=document.getElementById('ta');if(t){t.focus();t.setSelectionRange(t.value.length,t.value.length);}};
 window.toggleQuiet=()=>{
   quiet=!quiet;
+  if(quiet)stopSpeech();   /* Quiet silences everything, including anything mid-sentence */
   toast(quiet?'Quiet on — nothing will surface':'Quiet off');
   renderDock();paintStream();
   if(tab!=='road')render();
+};
+window.toggleListen=()=>{
+  if(!TTS_OK){toast('Read-aloud isn’t supported here');return;}
+  S.listen=!S.listen;save();
+  if(S.listen){
+    /* This tap is the user gesture some engines require before they'll speak. */
+    try{speechSynthesis.resume();}catch(e){}
+    speak('Listening. Messages read aloud.');
+    toast('Listening — messages read aloud');
+  }else{
+    stopSpeech();
+    toast('Listening off');
+  }
+  renderDock();
+  if(tab==='me')render();
 };
 window.quick=i=>{push(TILES[i][0]);};
 window.sendNow=()=>{
@@ -1159,6 +1205,9 @@ function rMe(){
       <button class="sw-t ${parked?'on':''}" role="switch" aria-checked="${parked}" aria-labelledby="lbl-parked" onclick="togParked()"><i></i></button></div>
     <div class="srow"><div class="k" id="lbl-sound">Sound<small>A blip when a message lands while you’re stopped.</small></div>
       <button class="sw-t ${S.sound?'on':''}" role="switch" aria-checked="${S.sound}" aria-labelledby="lbl-sound" onclick="togSound()"><i></i></button></div>
+    <div class="srow"><div class="k" id="lbl-listen">Read aloud${TTS_OK?'':' <span class="mono" style="color:var(--txt-3)">· not supported here</span>'}
+      <small>Hands-free. Incoming messages are spoken so you never look at the screen — the safest way to use this while driving. Also on the Road screen’s <b>Listen</b> button.</small></div>
+      <button class="sw-t ${S.listen?'on':''}" role="switch" aria-checked="${S.listen}" aria-labelledby="lbl-listen" ${TTS_OK?'':'disabled style="opacity:.4"'} onclick="toggleListen()"><i></i></button></div>
   </div>
   <div class="card">
     <span class="lbl">Private lane</span>
@@ -1221,6 +1270,7 @@ window.wipe=()=>{
 };
 window.doWipe=()=>{
   try{localStorage.removeItem(KEY);}catch(e){}
+  stopSpeech();quiet=false;
   S=blank();msgs=[];peers.clear();MUTED.clear();closeSheet();onbStep=0;showGate();render(true);
 };
 
