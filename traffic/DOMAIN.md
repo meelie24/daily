@@ -36,10 +36,19 @@ Then **Settings → Pages → Build and deployment → Deploy from a branch → 
 and the GLP-1 app down into a folder. Fewer moving parts, but the GLP-1 app's URL
 changes and any existing link to it breaks. Only do this if nobody has that link.
 
-Either way, once Lane is at a site root, edit the four absolute URLs in the
-`<head>` of `index.html` — `canonical`, `og:url`, `og:image` — to the new domain.
-They are absolute because crawlers don't run our JS, so they can't be worked out
-at load time.
+Either way, once Lane is at a site root, the absolute URLs in the `<head>` of
+`index.html` need repointing — `canonical`, `og:url` and `og:image`. They're
+absolute because crawlers don't run our JS and can't work them out at load time,
+which also means nothing catches it if you forget. The card just silently stops
+appearing.
+
+```sh
+sed -i 's|https://meelie24.github.io/daily/traffic/|https://lane.example/|g' traffic/index.html
+grep -n 'og:url\|og:image\|canonical' traffic/index.html      # eyeball all four
+```
+
+Note the trailing slashes: the old value ends in one and so must the new, or
+`og:image` comes out as `https://lane.exampleog.png`.
 
 ## Buying the name
 
