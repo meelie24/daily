@@ -40,8 +40,11 @@ ways out, neither of which needs a code change:
 
 ## Turning it on
 
-You need an X developer account, a project, an app with **Read and write**
-permission, and the four OAuth 1.0a credentials from that app.
+Starting from no X account at all? **[X-SETUP.md](X-SETUP.md)** walks the whole
+thing, signup to first post, assuming nothing.
+
+The short version. You need an X developer account, a project, an app with
+**Read and write** permission, and the four OAuth 1.0a credentials from that app.
 
 1. **Settings → Secrets and variables → Actions → Secrets**, add four:
    `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_SECRET`.
