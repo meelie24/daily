@@ -32,7 +32,7 @@
   --line-2:rgba(255,255,255,.16);
   --txt:#ebebeb;
   --txt-2:rgba(235,235,235,.6);
-  /* Information-bearing muted text. 55% over obsidian is ~4.6:1 — the readable
+  /* Information-bearing muted text. 55% over obsidian is ~4.6:1, the readable
      floor. --txt-3 stays for genuine decoration (glyph-only, redundant labels). */
   --txt-info:rgba(235,235,235,.62);
   --txt-3:rgba(235,235,235,.3);
@@ -49,7 +49,7 @@ body{
   min-height:100vh;min-height:100dvh;
   padding-bottom:calc(150px + env(safe-area-inset-bottom));
 }
-/* architectural 60px grid — stops the dark from going flat */
+/* architectural 60px grid, stops the dark from going flat */
 body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
   background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),
                    linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);
@@ -79,7 +79,7 @@ input,textarea{font-family:inherit;font-size:1rem;color:var(--txt)}
   padding:calc(14px + env(safe-area-inset-top)) 16px 22px;min-height:78vh}
 @media(min-width:576px){#shell{margin:8px auto}}
 
-/* system status tag — a real <button> so it's keyboard-reachable and 44px tall */
+/* system status tag, a real <button> so it's keyboard-reachable and 44px tall */
 .tag{display:inline-flex;align-items:center;gap:.5rem;font-family:'JetBrains Mono',monospace;
   text-transform:uppercase;letter-spacing:.2em;font-size:10px;font-weight:500;color:var(--txt-2);
   background:var(--glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
@@ -157,7 +157,7 @@ input,textarea{font-family:inherit;font-size:1rem;color:var(--txt)}
 .tile:active{transform:scale(.94);border-color:rgba(204,255,0,.5)}
 .tile.calm{border-color:rgba(16,185,129,.4);color:var(--emerald)}
 .tile.warn{border-color:rgba(204,255,0,.35);color:var(--lime)}
-/* While moving: hazard tiles in a fixed 2-col grid — no horizontal scroll, all
+/* While moving: hazard tiles in a fixed 2-col grid, no horizontal scroll, all
    reachable at a glance, larger targets. */
 .drive-tiles{display:grid;grid-template-columns:1fr 1fr;gap:9px;padding-bottom:10px}
 .drive-tiles .tile{min-height:60px;display:flex;align-items:center;justify-content:center;
@@ -167,7 +167,7 @@ input,textarea{font-family:inherit;font-size:1rem;color:var(--txt)}
   background:var(--glass-2);border:1px solid var(--line-2);color:var(--txt);margin-top:9px}
 .quiet-btn.on{background:var(--lime);color:#000;border-color:var(--lime)}
 .quiet-btn:active{transform:scale(.98)}
-/* Listen + Quiet side by side while moving — both big, both one tap. */
+/* Listen + Quiet side by side while moving, both big, both one tap. */
 .drive-ctrls{display:grid;grid-template-columns:1fr 1fr;gap:9px}
 .drive-ctrls .quiet-btn{margin-top:0}
 .row{display:flex;gap:9px;align-items:flex-end}
@@ -210,7 +210,7 @@ input,textarea{font-family:inherit;font-size:1rem;color:var(--txt)}
   display:flex;align-items:flex-end;justify-content:center;padding-bottom:7px;
   font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:.1em;text-transform:uppercase;
   color:rgba(255,255,255,.92);text-shadow:0 1px 4px rgba(0,0,0,.95);transition:all .2s var(--ease)}
-/* White-on-white is unreadable — light swatches get dark labels instead. */
+/* White-on-white is unreadable, light swatches get dark labels instead. */
 .swatches button.lt{color:rgba(0,0,0,.88);text-shadow:0 1px 3px rgba(255,255,255,.55)}
 .swatches button.on{border-color:var(--lime);box-shadow:0 0 26px rgba(204,255,0,.45);transform:scale(1.05)}
 .chips{display:flex;gap:8px;flex-wrap:wrap}
@@ -335,13 +335,13 @@ const COLORS=[
  ['Green','#2E9E5B'],['Olive','#6B7A3A'],['Yellow','#EBC33A'],['Orange','#E8802A'],
  ['Brown','#6E4B32'],['Beige','#C9B896'],['Purple','#7E4FC4'],['Pink','#D96BA6']];
 const BODIES=['Car','SUV','Truck','Van','Bike','Bus'];
-/* Curated on purpose. De-escalation first and styled loudest — apology cools a
+/* Curated on purpose. De-escalation first and styled loudest, apology cools a
    situation down, venting winds it up, and tile order is a thumb on that scale. */
 const TILES=[
- ['Go ahead — I’ll wait','calm'],['My bad ✋','calm'],['Thanks 👋','calm'],
- ['What’s the holdup?',''],['Accident ahead','warn'],['Road closed — turn around','warn'],
+ ['Go ahead, I’ll wait','calm'],['My bad','calm'],['Cheers','calm'],
+ ['What’s the holdup?',''],['Accident ahead','warn'],['Road closed, turn around','warn'],
  ['Stalled car ahead','warn'],['Lights are out','warn'],['Cops ahead',''],
- ['Been stuck 20 min',''],['Moving again ✅','calm'],['Anyone know a way round?','']];
+ ['Been stuck 20 min',''],['Moving again','calm'],['Anyone know a way round?','']];
 /* Shown while moving: hazard reports only, one tap, no reading required. */
 const DRIVE_TILES=[4,5,6,7,10];
 
@@ -442,7 +442,7 @@ function dist(a1,o1,a2,o2){
   const x=Math.sin(dLat/2)**2+Math.cos(a1*t)*Math.cos(a2*t)*Math.sin(dLon/2)**2;
   return 2*R*Math.asin(Math.sqrt(x));
 }
-/* Published position is snapped to a ~55m grid. The broker is public — anyone can
+/* Published position is snapped to a ~55m grid. The broker is public, anyone can
    subscribe. Coarse enough that a harvester gets a block, not a driveway; fine
    enough that the radius filter still works. */
 const QUANT=0.0005;
@@ -479,10 +479,10 @@ function evalMotion(){
   const stale=!pos||now-pos.t>STALE_MS;
   const bad=pos&&pos.acc>60;
   if(parked){ /* re-armed every session, never persisted, cancels itself */
-    if(sp!=null&&sp>=MOVE_MS){parked=false;toast('Moving — parked mode off');}
+    if(sp!=null&&sp>=MOVE_MS){parked=false;toast('Moving, so parked mode is off');}
     else moving=false;
   }
-  /* Distinguish "GPS says you're moving" from "GPS can't tell" — the second is a
+  /* Distinguish "GPS says you're moving" from "GPS can't tell", the second is a
      stationary user who deserves a different message and a one-tap unlock. */
   else if(stale||bad||sp==null){moving=true;stillSince=0;moveReason='uncertain';}
   else if(sp>=MOVE_MS){moving=true;stillSince=0;moveReason='speed';}
@@ -517,7 +517,7 @@ function stopGeo(){
 window.retryGeo=()=>{gpsErr=null;stopGeo();startGeo();renderDock();if(tab==='road')render();toast('Asking for location…');};
 
 /* ============ MQTT 3.1.1 over WebSocket ============ */
-/* Hand-rolled so the page stays a single file with no CDN. QoS 0 only — chat
+/* Hand-rolled so the page stays a single file with no CDN. QoS 0 only, chat
    that arrives late is worthless anyway. */
 const BROKERS=[
  ['EMQX','wss://broker.emqx.io:8084/mqtt'],
@@ -609,7 +609,7 @@ function MqttClient(url,opts){
       pingT=setInterval(()=>send(new Uint8Array([0xC0,0x00])),25000);
       /* PINGRESP and every PUBLISH bump lastRx. If nothing arrives for 70s
          (keepalive 60s means a healthy broker answers our 25s pings well inside
-         that), the socket is silently dead — tear it down so netStart reconnects
+         that), the socket is silently dead, so tear it down and let netStart reconnect
          instead of showing 'live' into a void. */
       watchT=setInterval(()=>{if(Date.now()-lastRx>70000){self.close();self.onclose('stale');}},10000);
       self.onconnect();
@@ -628,7 +628,7 @@ let mq=null,brokerIdx=0,connState='off',subbed=[],retry=0,retryT=null;
 const peers=new Map();
 let msgs=[],seen=new Set(),unread=0,linkVerifiedAt=0;
 const MUTED=new Set();
-/* True once our own packet has echoed back recently — distinguishes "working but
+/* True once our own packet has echoed back recently, distinguishes "working but
    quiet" from "broken" in the empty state. */
 const linkVerified=()=>linkVerifiedAt&&Date.now()-linkVerifiedAt<40000;
 const HEARTBEAT=15000,PEER_TTL=50000,MSG_TTL=420000;
@@ -650,7 +650,7 @@ function setConn(s){if(connState!==s){connState=s;paintConn();}}
 function netStart(){
   if(mq){mq.close();mq=null;}
   if(retryT){clearTimeout(retryT);retryT=null;}
-  /* No point dialling into a dead radio — an offline listener will reconnect us. */
+  /* No point dialling into a dead radio, an offline listener will reconnect us. */
   if(navigator.onLine===false){setConn('offline');return;}
   setConn('wait');
   const url=brokerUrl();
@@ -665,7 +665,7 @@ function netStart(){
       const was=connState;
       setConn('off');subbed=[];
       /* Rotate to the next public broker after a couple of failures of ANY kind
-         — a broker that refuses us, never sends CONNACK, or dies is no better
+         since a broker that refuses us, never sends CONNACK, or dies is no better
          than one that closes. Never rotate a user's own custom broker. */
       const rotatable=!S.customBroker.trim()&&why!=='intentional'&&navigator.onLine!==false;
       if(rotatable&&retry>=2){
@@ -674,7 +674,7 @@ function netStart(){
       }else if(was==='live'){
         toast('Reconnecting…');
       }
-      /* Backoff with jitter, and DON'T reset retry on rotation — otherwise every
+      /* Backoff with jitter, and DON'T reset retry on rotation, otherwise every
          client would hammer the shared brokers every ~3s through an outage. */
       retry++;
       const wait=Math.min(15000,1000*Math.pow(2,Math.min(retry,4)))+Math.random()*1200;
@@ -698,7 +698,7 @@ function pub(obj){
   if(!t||connState!=='live')return false;
   return mq.publish(t,JSON.stringify(obj));
 }
-/* In a private lane the room is the code, not the place — so don't put any
+/* In a private lane the room is the code, not the place, so don't put any
    position on the wire at all. Nothing to leak, nothing to filter on. */
 const wireLat=()=>(S.lane.trim()||!pos)?0:snap(pos.la);
 const wireLng=()=>(S.lane.trim()||!pos)?0:snap(pos.lo);
@@ -709,7 +709,7 @@ function sayHey(){
 }
 function sayBye(){pub({v:1,k:'bye',id:MYID,ts:Date.now()});}
 
-/* The broker is public — a hostile peer can flood the topic. Everything below is
+/* The broker is public, a hostile peer can flood the topic. Everything below is
    a bound on what one wire packet can cost us. */
 const MAX_PEERS=250,MAX_ID=32,HEY_MINGAP=4000;
 function onWire(raw){
@@ -717,7 +717,7 @@ function onWire(raw){
   try{m=JSON.parse(raw);}catch(e){return;}
   if(!m||m.v!==1||typeof m.id!=='string')return;
   if(MYIDS.has(m.id)){
-    /* Our own packet came back — ordered TCP means the SUBSCRIBE landed first, so
+    /* Our own packet came back, ordered TCP means the SUBSCRIBE landed first, so
        this is live proof the round trip works even when the road is empty. */
     linkVerifiedAt=Date.now();
     if(m.k==='msg'){ /* mark the matching outgoing bubble delivered */
@@ -730,7 +730,7 @@ function onWire(raw){
   if(m.id.length>MAX_ID)return;                 /* bound Map-key and 'seen' growth */
   if(m.k==='bye'){if(peers.delete(m.id))schedulePaint();return;}
   const known=peers.get(m.id);
-  /* Reject brand-new ids once the room is full — a flood can't grow the Map or
+  /* Reject brand-new ids once the room is full, a flood can't grow the Map or
      the render cost without bound. Known peers still update. */
   if(!known&&peers.size>=MAX_PEERS)return;
   const c=clamp(m.c|0,0,COLORS.length-1),b=clamp(m.b|0,0,BODIES.length-1);
@@ -738,7 +738,7 @@ function onWire(raw){
   const located=isFinite(la)&&isFinite(lo)&&(la||lo);
   let d=null;
   if(!S.lane.trim()){
-    /* Public mode: a car with no usable position is not "near you" — drop it
+    /* Public mode: a car with no usable position is not "near you", drop it
        rather than letting la:0,lo:0 skip the radius gate entirely. */
     if(!pos||!located)return;
     d=dist(pos.la,pos.lo,la,lo);
@@ -781,7 +781,7 @@ function addMsg(m){
   msgs.push(m);
   if(msgs.length>120)msgs=msgs.slice(-80);
   if(tab==='road'){if(moving)scheduleDrive();else scheduleStream();}
-  /* No unread badge or ping while moving or quiet — a counter is an obligation
+  /* No unread badge or ping while moving or quiet, a counter is an obligation
      and an obligation is a glance (safety brief P0 #4). It waits until you stop. */
   else if(!moving&&!quiet){unread++;nav();}
   if(!m.mine&&!quiet){
@@ -815,7 +815,7 @@ function netTick(){
        handle, so no single broker subscriber can chain your heartbeats into a
        whole-drive trace. The old handle just TTL-expires from others' lists. */
     if(wasCell&&cell&&!S.lane.trim())rotateId();
-    /* Don't wipe peers on a cell flip — the 3x3 subscription overlaps heavily
+    /* Don't wipe peers on a cell flip, the 3x3 subscription overlaps heavily
        with the neighbouring cell, and a GPS jitter to an adjacent cell and back
        would otherwise blank everyone. Stale peers TTL-expire on their own. */
     schedulePaint();
@@ -824,23 +824,23 @@ function netTick(){
 }
 setInterval(netTick,5000);
 window.addEventListener('pagehide',()=>{sayBye();});
-/* A dead zone is not a broker failure — reflect it honestly and don't burn the
+/* A dead zone is not a broker failure, reflect it honestly and don't burn the
    relay-rotation budget retrying into no signal. */
 addEventListener('offline',()=>{if(retryT){clearTimeout(retryT);retryT=null;}if(mq){mq.close();mq=null;}setConn('offline');if(tab==='road')paintStream();});
 addEventListener('online',()=>{retry=0;lastCell=null;netStart();});
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden){
-    /* Backgrounded: assume driving, and stop the high-accuracy GPS watch — it's
+    /* Backgrounded: assume driving, and stop the high-accuracy GPS watch, it's
        the biggest battery cost and nothing on screen consumes it. */
     moving=true;renderDock();
     if(tab==='road')paintStream(); /* collapse scrollback to the single drive card now, so return-while-moving is correct */
     stopGeo();
   }else{
     /* Foregrounded: GPS back on, and hidden-tab timer clamping (>=60s) may have
-       let the socket die silently — reconnect if we're not demonstrably live. */
+       let the socket die silently, so reconnect if we're not demonstrably live. */
     startGeo();acquireWake();evalMotion();
     /* iOS suspends speechSynthesis while backgrounded and can wedge it mid-utterance
-       — clear the frozen queue so Listen recovers instead of going silent forever. */
+       Clear the frozen queue so Listen recovers instead of going silent forever. */
     if(TTS_OK&&S.listen){try{speechSynthesis.cancel();}catch(e){}ttsPending=0;}
     if(connState!=='live'){retry=0;lastCell=null;netStart();}
     else{lastCell=null;sayHey();}
@@ -890,7 +890,7 @@ window.closeSheet=()=>{
   sh.addEventListener('touchstart',e=>{sy=sh.scrollTop<=0?e.touches[0].clientY:null;},{passive:true});
   sh.addEventListener('touchmove',e=>{if(sy!=null&&e.touches[0].clientY-sy>90){sy=null;closeSheet();}},{passive:true});
 })();
-/* Escape closes the sheet — keyboard users need a non-pointer exit from the dialog. */
+/* Escape closes the sheet, keyboard users need a non-pointer exit from the dialog. */
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('sheet').classList.contains('show'))closeSheet();});
 let toastT=null;
 function toast(msg){
@@ -916,7 +916,7 @@ function releaseWake(){if(wl){try{wl.release();}catch(e){}wl=null;}}
 
 let actx=null,armedThisSession=false;
 /* Browsers won't let an AudioContext make sound (or, on iOS, speak) until it's
-   been resumed inside a user gesture — do it on the first tap. */
+   been resumed inside a user gesture, so do it on the first tap. */
 addEventListener('pointerdown',()=>{
   try{
     actx=actx||new (window.AudioContext||window.webkitAudioContext)();
@@ -937,14 +937,14 @@ function blip(){
 }
 
 /* ============ LISTEN MODE (hands-free / eyes-off) ============ */
-/* Reads incoming messages aloud so a driver never has to look at the screen —
+/* Reads incoming messages aloud so a driver never has to look at the screen,
    the safest mode there is. Web Speech, no network, degrades silently where the
    API is absent. */
 const TTS_OK=typeof window!=='undefined'&&'speechSynthesis'in window&&'SpeechSynthesisUtterance'in window;
 let ttsPending=0;
 function speak(text){
   if(!TTS_OK||!text)return;
-  if(ttsPending>=2)return;   /* drop the excess — a burst must not queue minutes of speech */
+  if(ttsPending>=2)return;   /* drop the excess, a burst must not queue minutes of speech */
   try{
     const u=new SpeechSynthesisUtterance(text);
     u.rate=1.05;u.lang='en-US';
@@ -961,7 +961,7 @@ function stopSpeech(){try{speechSynthesis.cancel();}catch(e){}ttsPending=0;}
 const carName=p=>COLORS[p.c][0]+' '+BODIES[p.b];
 const swatch=(ci,cls)=>`<span class="sw ${cls||''}" style="background:${COLORS[ci][1]}"></span>`;
 /* Two red cars at the same light read as one person. Only when a colour+shape is
-   actually doubled up do we add two letters off the session id — enough to follow
+   actually doubled up do we add two letters off the session id, which is enough to follow
    who said what, still nothing that survives to the next drive. */
 function dupCombos(){
   const by=new Map();
@@ -974,7 +974,7 @@ function dupCombos(){
   return dup;
 }
 const label=(id,c,b,dup)=>COLORS[c][0]+' '+BODIES[b]+(dup&&dup.has(c+'|'+b)?' '+[...String(id)].slice(0,2).join('').toUpperCase():'');
-/* Coarse buckets only. Never a bearing, never "behind you" — that turns an
+/* Coarse buckets only. Never a bearing, never "behind you", that turns an
    anonymous message into a targeting reticle for the car it names. */
 function band(d){
   if(d==null)return '';
@@ -1015,7 +1015,7 @@ function schedulePaint(){
 const greet=()=>{const h=new Date().getHours();return h<5?'Late one':h<12?'Morning':h<18?'Afternoon':'Evening';};
 const rangeTxt=()=>S.radius>=1000?(S.radius/1000)+' km':S.radius+' m';
 /* Relative luminance, so a swatch label picks the readable ink for its own chip.
-   White and black ink contrast equally at L=0.179 — above that black wins. Do not
+   White and black ink contrast equally at L=0.179. Above that, black wins. Do not
    eyeball this threshold; mid-tones like Sky sit close to it and guess wrong. */
 function isLight(hex){
   const v=n=>{const c=parseInt(hex.substr(n,2),16)/255;return c<=.03928?c/12.92:Math.pow((c+.055)/1.055,2.4);};
@@ -1043,7 +1043,7 @@ function rRoad(){
   return `<div class="ghead">
     <div class="hrow">${statusChip()}<span class="mono" style="color:var(--txt-info)">${esc(rangeTxt())}</span></div>
     <h1 class="disp">${esc(greet())}.<br><em>${esc(me)}</em></h1>
-    <div class="sub">Goes out over a public relay to the cars within ${esc(rangeTxt())} — like shouting out the window. Anyone nearby, or quietly listening, can hear. Not stored anywhere.</div>
+    <div class="sub">Whatever you send goes to every car within ${esc(rangeTxt())}, over a public relay. It’s a bit like shouting out the window, so anyone can listen in. Nothing gets stored.</div>
   </div>
   ${parked?`<div class="warnbox" style="border-color:rgba(16,185,129,.4);background:rgba(16,185,129,.06)"><b style="color:var(--emerald)">Parked mode on</b>
     <p>Typing stays unlocked, and switches off by itself the moment you move.${S.lane.trim()?'':' Your rough spot (±55 m) keeps going out on the public relay while this is on.'} <button class="chip" style="min-height:40px;margin-top:8px;padding:9px 16px;font-size:.8rem" onclick="togParked()">Turn off</button></p></div>`:''}
@@ -1056,10 +1056,10 @@ function rRoad(){
   <div class="rail" id="rail">${railHTML()}</div>
   <div id="stream"></div>`;
 }
-/* True before the very first fix arrives and no error yet — distinct from moving,
+/* True before the very first fix arrives and no error yet, distinct from moving,
    so a new user on the sofa isn't told "You're moving". */
 const locating=()=>!pos&&!gpsErr&&!S.lane.trim();
-/* Coarse relative time — a 6-minute-old "Accident ahead" must not read as live. */
+/* Coarse relative time, a 6-minute-old "Accident ahead" must not read as live. */
 function ago(ts){const s=Math.max(0,(Date.now()-ts)/1000);return s<45?'now':s<90?'1m':s<3600?Math.round(s/60)+'m':Math.round(s/3600)+'h';}
 /* Empty-state copy, state-aware so "quiet" never reads as "broken". */
 const inviteBtn='<button class="btn ghost sm" style="margin-top:14px;max-width:280px;margin-left:auto;margin-right:auto" onclick="invite()">Invite the car next to you →</button>';
@@ -1068,7 +1068,7 @@ function emptyMsg(){
   if(connState==='offline')return 'You’re offline. Messages won’t send or arrive until you’re back in signal.';
   if(connState!=='live')return 'Linking to the road…';
   if(nearby().length)return 'No one’s said anything yet. Break the ice.';
-  if(linkVerified())return `<b style="color:var(--txt)">You’re on the air — first one here.</b><br>Your signal’s going out and coming back; there’s just no other car in range yet. You’ll be the first they see.${inviteBtn}${S.radius<2000&&!S.lane.trim()?widenBtn:''}`;
+  if(linkVerified())return `<b style="color:var(--txt)">You’re on the air, first one here.</b><br>Your signal is going out and coming back fine. There’s just nobody else in range yet, so anyone who opens Lane near you will see you straight away.${inviteBtn}${S.radius<2000&&!S.lane.trim()?widenBtn:''}`;
   return 'Getting you on the air…';
 }
 /* One glance = ~one short line. The compose/stopped view keeps the full text;
@@ -1105,7 +1105,7 @@ function paintStream(){
     el.innerHTML=`<div class="empty">${emptyMsg()}</div>`;
     return;
   }
-  /* Only follow the tail if the user is already near it — don't yank someone
+  /* Only follow the tail if the user is already near it, don't yank someone
      reading scrollback down when other people's traffic arrives. */
   const nearBottom=(window.innerHeight+window.scrollY)>=(document.body.scrollHeight-160);
   const dup=dupCombos();
@@ -1118,7 +1118,7 @@ function paintStream(){
   const s=document.getElementById('stream');
   if(s&&nearBottom)s.scrollIntoView({block:'end'});
 }
-/* Age the timestamps in place — no innerHTML rebuild, so the newest bubble doesn't
+/* Age the timestamps in place, no innerHTML rebuild, so the newest bubble doesn't
    re-animate and a text selection isn't destroyed every 20s. */
 setInterval(()=>{
   if(tab!=='road'||moving||quiet)return;
@@ -1185,12 +1185,12 @@ window.onType=el=>{
   if(cap){const over=draft.length>180;cap.style.display=over?'':'none';cap.textContent=(240-draft.length)+' left';}
 };
 window.restore=()=>{draft=heldDraft;heldDraft='';renderDock();const t=document.getElementById('ta');if(t){t.focus();t.setSelectionRange(t.value.length,t.value.length);}};
-/* Beat the network effect honestly: pull a specific person into a shared code —
-   the car in the next lane, or a friend — no fake presence anywhere. */
+/* Beat the network effect honestly: pull a specific person into a shared code,
+   the car in the next lane or a friend. No fake presence anywhere. */
 window.invite=()=>{
   if(!S.lane.trim()){S.lane=rid(6);save();lastCell=null;subbed=[];peers.clear();msgs=[];netStart();render();}
   const url=location.origin+location.pathname+'#lane='+encodeURIComponent(S.lane.trim());
-  const share={title:'Lane',text:'Join my lane on Lane — we can talk car to car.',url};
+  const share={title:'Lane',text:'Join my lane on Lane so we can talk car to car.',url};
   if(navigator.share){navigator.share(share).catch(()=>{});}
   else if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(url).then(()=>toast('Invite link copied'),()=>inviteSheet(url));}
   else inviteSheet(url);
@@ -1198,7 +1198,7 @@ window.invite=()=>{
 window.doInstall=()=>{if(installEvt){installEvt.prompt();installEvt=null;render();}};
 function inviteSheet(url){
   openSheet(`<h3>Invite a car</h3>
-   <p style="font-size:.86rem;color:var(--txt-2);margin-bottom:14px">Anyone who opens this link joins your lane <b>“${esc(S.lane.trim())}”</b> — location is ignored, so it works for the car beside you or a friend across town.</p>
+   <p style="font-size:.86rem;color:var(--txt-2);margin-bottom:14px">Anyone who opens this link joins your lane <b>“${esc(S.lane.trim())}”</b>. Location is ignored, so it works for the car beside you or a friend across town.</p>
    <input type="text" readonly value="${esc(url)}" onclick="this.select()" style="font-size:.8rem">
    <button class="btn sm" style="margin-top:12px" onclick="(navigator.clipboard&&navigator.clipboard.writeText)?navigator.clipboard.writeText('${esc(url)}').then(()=>toast('Copied')):toast('Select and copy the link')">Copy link</button>`);
 }
@@ -1206,7 +1206,7 @@ window.toggleQuiet=()=>{
   quiet=!quiet;
   if(quiet)stopSpeech();   /* Quiet silences everything, including anything mid-sentence */
   else{hushUntil=0;if(hushT){clearTimeout(hushT);hushT=null;}}  /* manual come-back also ends a hush */
-  toast(quiet?'Quiet on — nothing will surface':'Quiet off');
+  toast(quiet?'Quiet on, nothing will surface':'Quiet off');
   renderDock();paintStream();
   if(tab!=='road')render();
 };
@@ -1231,7 +1231,7 @@ window.toggleListen=()=>{
     try{speechSynthesis.resume();}catch(e){}
     speak('Listening. Messages read aloud.');
     acquireWake();
-    toast(IS_IOS?'Listening — keep the screen on':'Listening — messages read aloud');
+    toast(IS_IOS?'Listening. Keep the screen on':'Listening, messages read out loud');
   }else{
     stopSpeech();
     toast('Listening off');
@@ -1247,7 +1247,7 @@ window.sendNow=()=>{
 };
 function push(txt){
   if(S.car.color<0){toast('Pick your car first');return false;}
-  if(connState==='offline'){toast('You’re offline — not sent');return false;}
+  if(connState==='offline'){toast('You’re offline, so it didn’t send');return false;}
   if(connState!=='live'){toast('Not connected yet');return false;}
   if(!S.lane.trim()&&!pos){toast('Waiting for location');return false;}
   const cd=cooldown();
@@ -1266,12 +1266,12 @@ function rPick(){
   return `<div class="ghead">
     <span class="mono" style="color:var(--txt-3)">Step · your car</span>
     <h1 class="disp" style="margin-top:14px">What are<br>you <em>driving?</em></h1>
-    <div class="sub">This is the only thing anyone sees. No name, no account, no history.</div>
+    <div class="sub">It’s the only thing anyone sees. No name, no account.</div>
   </div>
   <div class="card"><span class="lbl">Colour</span>${swatchGrid('setColor')}</div>
   <div class="card"><span class="lbl">Shape</span>${bodyChips('setBody')}</div>
   ${S.car.color>=0?`<button class="btn" onclick="startDriving()">I’m a ${esc(COLORS[S.car.color][0]+' '+BODIES[S.car.body])} →</button>`:''}
-  <p class="note">Pick what people can actually see from the next lane. If it’s wrong, nobody knows who you are — including the person you’re replying to.</p>`;
+  <p class="note">Pick what people can actually see from the next lane. If it’s wrong, nobody knows who you are, including whoever you’re replying to.</p>`;
 }
 window.setColor=i=>{S.car.color=i;save();render();};
 window.setBody=i=>{S.car.body=i;save();render();};
@@ -1310,9 +1310,9 @@ function rCars(){
       <button class="chip" style="min-height:44px;padding:11px 18px;font-size:.78rem" data-mute="${esc(p.id)}" aria-pressed="${MUTED.has(p.id)}">${MUTED.has(p.id)?'Unmute':'Mute'}</button>
     </div></div>`).join('')
    :`<div class="empty">${connState==='offline'?'You’re offline. Lane can’t see any cars until you’re back in signal.'
-      :linkVerified()?`<b style="color:var(--txt)">You’re on the air — nobody else yet.</b><br>Lane won’t invent traffic that isn’t there. Pull someone in, or widen your range.${inviteBtn}${S.radius<2000&&!S.lane.trim()?widenBtn:''}`
+      :linkVerified()?`<b style="color:var(--txt)">You’re on the air, nobody else yet.</b><br>Lane won’t invent traffic that isn’t there. Pull someone in, or widen your range.${inviteBtn}${S.radius<2000&&!S.lane.trim()?widenBtn:''}`
       :'Lane needs another car with the app open and a signal. It won’t invent traffic that isn’t there.'}</div>`}
-  <p class="note">Muting lasts for this session. Everyone’s ID changes every time they open the app, so a mute can’t follow someone across drives — that’s the cost of nobody being able to build a grudge against you either.</p>`;
+  <p class="note">Muting lasts for this session. Everyone’s ID changes every time they open the app, so a mute can’t follow someone across drives. That’s the trade for nobody being able to build a grudge against you either.</p>`;
 }
 function toggleMute(id){
   if(MUTED.has(id))MUTED.delete(id);else MUTED.add(id);
@@ -1355,13 +1355,13 @@ function rMe(){
       <small>Stops your phone sleeping while Lane is open, so a glance at a light always works and the connection stays alive. Uses more battery.</small></div>
       <button class="sw-t ${S.keepAwake?'on':''}" role="switch" aria-checked="${S.keepAwake}" aria-labelledby="lbl-awake" onclick="togAwake()"><i></i></button></div>`:''}
     <div class="srow"><div class="k" id="lbl-listen">Read aloud${TTS_OK?'':' <span class="mono" style="color:var(--txt-3)">· not supported here</span>'}
-      <small>Hands-free — incoming messages are spoken to you. ${IS_IOS?'On iPhone, keep Lane open with the screen on; it stops reading if you leave the app or the screen sleeps.':'Lets you keep your eyes on the road.'} Also on the Road screen’s <b>Listen</b> button.</small></div>
+      <small>Incoming messages get read out loud so you can keep your eyes up. ${IS_IOS?'On iPhone, keep Lane open with the screen on; it stops reading if you leave the app or the screen sleeps.':'Lets you keep your eyes on the road.'} Also on the Road screen’s <b>Listen</b> button.</small></div>
       <button class="sw-t ${S.listen?'on':''}" role="switch" aria-checked="${S.listen}" aria-labelledby="lbl-listen" ${TTS_OK?'':'disabled style="opacity:.4"'} onclick="toggleListen()"><i></i></button></div>
   </div>
   <div class="card">
     <span class="lbl">Shared code</span>
     <input type="text" placeholder="a word you both know" value="${esc(S.lane)}" onchange="setLane(this.value)">
-    <p class="note">Leave it empty for the real traffic around you. Fill in a word and you’ll only see people who typed the same one — location is ignored, wherever they are. It’s a channel name, not a password: pick something only your group would guess, and it still rides the public relay, so don’t treat it as secret. Handy for a convoy, or testing with a friend.</p>
+    <p class="note">Leave it empty for the real traffic around you. Fill in a word and you’ll only see people who typed the same one, wherever they are. Location is ignored. It’s a channel name, not a password: pick something only your group would guess, and it still rides the public relay, so don’t treat it as secret. Handy for a convoy, or testing with a friend.</p>
     <button class="btn ghost sm" style="margin-top:10px" onclick="invite()">Share an invite link</button>
   </div>
   <div class="card">
@@ -1369,7 +1369,7 @@ function rMe(){
     <div class="chips">${BROKERS.map((b,i)=>
       `<button class="chip ${!S.customBroker.trim()&&S.broker===i?'on':''}" aria-pressed="${!S.customBroker.trim()&&S.broker===i}" onclick="setBroker(${i})">${esc(b[0])}</button>`).join('')}</div>
     <input type="text" placeholder="or your own wss://host:port/mqtt" value="${esc(S.customBroker)}" onchange="setCustom(this.value)">
-    <p class="note">Currently on <b>${esc(brokerName())}</b>. These are free public MQTT brokers — <b>anyone can listen to them</b>. Lane rounds your position to about 55 m before sending and never sends a name, but don’t type anything here you’d mind a stranger reading. Point it at your own broker if you want it private.</p>
+    <p class="note">Currently on <b>${esc(brokerName())}</b>. These are free public MQTT brokers, and <b>anyone can listen to them</b>. Lane rounds your position to about 55 m before sending and never sends a name, but don’t type anything here you’d mind a stranger reading. Point it at your own broker if you want it private.</p>
   </div>
   ${!isInstalled()&&(installEvt||IS_IOS)?`<div class="card">
     <span class="lbl">Add to home screen</span>
@@ -1386,7 +1386,7 @@ function rMe(){
     <div class="srow"><div class="k">Reset everything<small>Clears your car, your settings and the safety notice. Messages were never saved in the first place.</small></div></div>
     <button class="btn danger sm" style="margin-top:12px" onclick="wipe()">Reset</button>
   </div>
-  <p class="note" style="text-align:center;padding-bottom:8px">We never store what you say — but it travels over a public relay anyone can listen to, so don’t send anything you’d mind a stranger reading. Messages fade in minutes and are gone.</p>`;
+  <p class="note" style="text-align:center;padding-bottom:8px">We never store what you say, but it travels over a public relay that anyone can listen to. Don’t send anything you’d mind a stranger reading. Messages fade after a few minutes.</p>`;
 }
 window.setRadius=r=>{S.radius=r;save();peers.clear();render();};
 window.togParked=()=>{
@@ -1414,7 +1414,7 @@ window.netSheet=()=>{
    <div class="srow"><div class="k">Relay</div><b class="mono" style="color:var(--lime)">${esc(brokerName())}</b></div>
    <div class="srow"><div class="k">Status</div><b class="mono">${connState==='live'?'Connected':connState==='wait'?'Linking':'Offline'}</b></div>
    <div class="srow"><div class="k">Location</div><b class="mono">${gpsErr?esc(gpsErr):pos?'±'+Math.round(pos.acc)+' m':'waiting'}</b></div>
-   <div class="srow"><div class="k">${S.lane.trim()?'Private lane':'Area'}</div><b class="mono">${S.lane.trim()?esc(S.lane.trim()):c?esc(c):'—'}</b></div>
+   <div class="srow"><div class="k">${S.lane.trim()?'Shared code':'Area'}</div><b class="mono">${S.lane.trim()?esc(S.lane.trim()):c?esc(c):'—'}</b></div>
    <div class="srow"><div class="k">Cars in range</div><b class="mono">${nearby().length}</b></div>
    <p class="note">Lane groups people by a map square about 4 km across, then only shows you the ones inside your range setting.</p>
    <button class="btn ghost sm" style="margin-top:14px" onclick="closeSheet();retry=0;netStart();toast('Reconnecting…')">Reconnect</button>`);
@@ -1432,7 +1432,7 @@ window.doWipe=()=>{
 };
 
 /* ============ ONBOARDING ============ */
-/* Three steps, one question each. Step 1 has no "skip" on purpose — a skippable
+/* Three steps, one question each. Step 1 has no "skip" on purpose, a skippable
    safety notice is not a safety notice. */
 const GATE_V=1;
 let onbStep=0;
@@ -1448,16 +1448,16 @@ function stepBar(){
 }
 function safetyBody(){
   return `<h1>Before you <em class="disp" style="font-style:italic">drive</em></h1>
-   <p><b style="color:var(--txt)">This is for when you’re stopped. Not when you’re moving.</b></p>
-   <p>Using a phone while driving is illegal in most places — including while you’re sat at a red light in the UK, France, Germany and most US states. This app doesn’t change that. Check your own local law.</p>
+   <p><b style="color:var(--txt)">Use this when you’re stopped, not when you’re moving.</b></p>
+   <p>Using a phone while driving is illegal in most places, including while you’re sat at a red light in the UK, France, Germany and most US states. This app doesn’t change that, so check your own local law.</p>
    <p>Reading or typing while driving roughly doubles your crash risk, and your attention doesn’t fully come back for up to 27 seconds afterwards.</p>
    <ol>
-    <li><b>Lane locks itself when you’re moving.</b> It can be wrong. You’re still the one driving.</li>
-    <li><b>Everyone here can see your car.</b> Assume they know which message was yours.</li>
-    <li><b>It’s public and it’s gone.</b> Messages ride a shared public relay — anyone can listen — and nothing is stored; they fade in minutes.</li>
+    <li><b>Lane locks itself when you’re moving,</b> but it can get that wrong. You’re still the one driving.</li>
+    <li><b>Everyone around you can see your car,</b> so assume they know which message was yours.</li>
+    <li><b>It’s public and it doesn’t stick around.</b> Messages go over a shared relay that anyone can listen to, and nothing is stored. They fade after a few minutes.</li>
     <li><b>If someone gets under your skin, put the phone down.</b> Nobody wins that one.</li>
    </ol>
-   <p style="margin-top:14px;font-size:.84rem;color:var(--txt-3)">You’re 18+ and you’re responsible for how you use this.</p>`;
+   <p style="margin-top:14px;font-size:.84rem;color:var(--txt-3)">You’re 18 or over, and how you use this is on you.</p>`;
 }
 function gateOnly(){
   return `${safetyBody()}
@@ -1465,7 +1465,7 @@ function gateOnly(){
 }
 function onbStepHTML(){
   if(onbStep===0)return `${stepBar()}${safetyBody()}
-    <button class="btn" style="margin-top:26px" onclick="onbNext()">I understand — continue</button>`;
+    <button class="btn" style="margin-top:26px" onclick="onbNext()">I understand, continue</button>`;
   if(onbStep===1)return `${stepBar()}
     <h1>What <em>colour</em> is your car?</h1>
     <p>It’s the only thing anyone will see. No name, no account.</p>
@@ -1478,8 +1478,8 @@ function onbStepHTML(){
     <div style="margin-top:22px">${bodyChips('onbBody')}</div>
     <div class="card" style="margin-top:24px;display:flex;align-items:center;gap:13px">
       ${swatch(S.car.color<0?0:S.car.color)}<b style="font-size:1.05rem;letter-spacing:-.03em">${esc((S.car.color<0?'':COLORS[S.car.color][0]+' ')+BODIES[S.car.body])}</b></div>
-    <p style="margin-top:16px">Next, your phone will ask for location — Lane uses it only to find the cars right around you, and never sends your exact spot.</p>
-    <p style="margin-top:10px;font-size:.84rem;color:var(--txt-3)">Lane is only as busy as the road you’re on. If it’s quiet at first, that’s normal — you might be the first car here.</p>
+    <p style="margin-top:16px">Your phone will ask for location next. Lane uses it to find the cars around you and never sends your exact spot.</p>
+    <p style="margin-top:10px;font-size:.84rem;color:var(--txt-3)">Lane is only as busy as the road you’re on. If it’s quiet at first that’s normal, you might be the first car here.</p>
     <button class="btn" style="margin-top:16px" onclick="onbDone()">Start driving →</button>
     <button class="skip" onclick="onbBack()">Back</button>`;
 }
@@ -1492,7 +1492,7 @@ window.hideGate=()=>{document.getElementById('gate').classList.remove('show');};
 
 /* ============ BOOT ============ */
 render(true);
-/* Defer the location prompt until onboarding is done — otherwise the native
+/* Defer the location prompt until onboarding is done, otherwise the native
    permission dialog pops over the safety gate with no context. Returning users
    (gate already accepted) get it immediately. */
 if(S.gate!==GATE_V)showGate();

@@ -1,193 +1,121 @@
 # Lane
 
-Talk to the cars around you. You pull up to a red light, open it, and the other
-people running it within a few hundred metres are already there — no room to
-join, no usernames, no friend list. Everyone is just their car: **Red Car**,
-**Blue SUV**, **White Van**. Say why the jam happened, tell people to turn
-around, or vent. Nothing is stored.
+Talk to the cars around you.
 
-One file, no build step, no backend of our own: `traffic/index.html`.
+You pull up to a red light. You open Lane, and the other people running it within
+a few hundred metres are already there. Nobody has a username. Everyone is just
+their car: Red Car, Blue SUV, White Van. Say why the jam happened, tell people to
+turn around, or vent about the guy who cut you up. Nothing is kept.
+
+It's one HTML file, `traffic/index.html`. No build step, no backend of our own.
+
+Live at **https://meelie24.github.io/daily/traffic/**
 
 ## How it finds the cars near you
 
-1. `watchPosition` gives a fix.
-2. The fix is encoded as a **geohash** — a short string naming a map square.
-   Precision is fixed at **5** (~4 km square).
-3. You publish to your own square's topic and subscribe to **that square plus its
-   8 neighbours**, so two cars either side of a square boundary still meet.
-4. Anything that arrives is filtered by real distance against your **Range**
-   setting (250 m – 2 km) before it reaches the screen.
+Your GPS fix gets turned into a geohash, which is a short string naming a square
+on the map. That square is the chat room. You publish to your own square and
+listen to it plus the eight around it, so two cars either side of a boundary
+still find each other. Anything that arrives then gets filtered by real distance
+against your Range setting, which runs from 250 m to 2 km.
 
-The precision is deliberately *not* tied to the Range setting. If it were, two
-cars parked side by side with different Range settings would compute different
-topics and never see each other.
+The square size is fixed and deliberately not tied to the Range setting. If it
+were, two cars parked side by side with different Range settings would end up in
+different rooms and never see each other.
 
-Transport is **MQTT 3.1.1 over a WebSocket**, written by hand (~90 lines) so the
-page needs no CDN. QoS 0 only — a chat message that arrives late is worthless.
+Transport is MQTT over a WebSocket, hand written in about 90 lines so the page
+doesn't need a CDN. QoS 0 only, because a chat message that turns up late is
+worthless anyway.
 
 ## The relay is public
 
-The default relays are free public MQTT brokers (EMQX, HiveMQ, Mosquitto, with
-automatic failover). **Anyone can subscribe to them.** So:
+The default relays are free public MQTT brokers. Anyone can subscribe to them, so
+Lane is built on that assumption rather than pretending otherwise:
 
-- Published coordinates are snapped to a **~55 m grid** — a harvester gets a
+* Published coordinates are rounded to roughly a 55 m grid. A harvester gets a
   block, not a driveway.
-- Nothing is sent but colour, shape, coarse position and your text. No name, no
-  account, no device id.
-- Your handle is random and **regenerates every session**, so no one can build a
-  reputation or a grudge against you across drives.
-- Point **Relay** at your own broker (`wss://host:port/mqtt`) if you want it
+* Only colour, shape, coarse position and your text ever go on the wire. No name,
+  no account, no device id.
+* Your handle is random, and it changes every session and every time you cross
+  into a new square, so nobody watching the broker can stitch your heartbeats
+  into a whole trip.
+* Point **Relay** at your own broker (`wss://host:port/mqtt`) if you want it
   private.
 
-A **private lane** (any shared word) ignores location entirely and publishes no
-coordinates at all — useful for a convoy, or for testing with a friend.
+A **shared code** (any word both of you type) ignores location completely and
+publishes no coordinates at all. Good for a convoy, or for testing with a friend.
 
-## Safety, and what it cost the design
+## Safety, and what it cost
 
-Using a phone while driving is illegal in most places, red light included. The
-app says so on first launch and does not pretend otherwise. What it enforces:
+Using a phone while driving is illegal in most places, red light included. Lane
+says so on first launch instead of implying a loophole. What it actually
+enforces:
 
-- **Speed gate.** A motion state machine with hysteresis (moving ≥3 m/s, stopped
-  <0.5 m/s held 3 s). Free typing is locked while you're moving; only one-tap
-  hazard tiles remain.
-- **Fails closed.** No fix, a stale fix, poor accuracy, or a backgrounded tab all
-  count as *moving*.
-- **Green-light interrupt.** Start moving mid-sentence and the composer blanks —
-  the draft is held, not lost, and offered back at the next stop.
-- **One message at a time while moving**, large, no scrollback, no unread counter.
-- **Listen mode.** One tap (on the Road screen or in settings) and incoming
-  messages are read aloud via the browser's speech synthesis, so you never look at
-  the screen — the safest way to use this while driving. The spoken text is
-  clipped, the queue is capped so a burst can't read out minutes of backlog, and
-  it degrades silently where the Web Speech API is absent.
-- **Quiet.** One tap silences everything — surfacing and speech — with an obvious
-  way back, reachable from the driving surface.
-- **Parked** is re-armed every session, never persisted, and switches itself off
+* **Speed gate.** A motion state machine with hysteresis: moving at 3 m/s or
+  more, stopped below 0.5 m/s held for 3 seconds. Free typing locks while you're
+  moving and only one-tap hazard tiles remain.
+* **Fails closed.** No fix, a stale fix, poor accuracy or a backgrounded tab all
+  count as moving.
+* **Green light interrupt.** Start moving mid sentence and the composer blanks.
+  The draft is held rather than lost, and offered back when you stop.
+* **Listen mode.** Incoming messages are read out loud so you never look at the
+  screen. On iPhone this only works with the app open and the screen on, because
+  iOS suspends speech otherwise, and the app says that rather than promising
+  something no web API can deliver.
+* **Keep screen awake** stops the phone locking mid drive and taking GPS, the
+  socket and speech down with it.
+* **Quiet** silences everything in one tap. **Hush** does the same for 15 minutes
+  and lifts by itself.
+* **Parked** is re armed every session, never persisted, and switches itself off
   the moment you move.
 
-Two deliberate omissions, both about the fact that people can see each other:
+Two things Lane deliberately does not do, both because people can see each other:
 
-- **No bearing or direction, ever.** "The blue car behind you" plus anonymity is
-  a targeting reticle. Only coarse distance bands are shown.
-- **No replies, no DMs, no @-addressing.** Broadcast to the area or nothing.
+* **No bearing or direction, ever.** "The blue car behind you" plus anonymity is
+  a targeting reticle. You only get coarse distance bands.
+* **No replies, no DMs, no @ mentions.** It's broadcast to the area or nothing.
 
-De-escalating tiles ("Go ahead — I'll wait", "My bad") sit first and are styled
-green, because tile order is a thumb on the scale.
+De-escalating tiles ("Go ahead, I'll wait", "My bad") sit first and are styled
+green, because the order of those tiles is a thumb on the scale.
 
-Rate limits and mute are client-side, so they're friction for normal use, not
-security. With rotating handles a mute can't follow someone across drives — the
-direct cost of nobody being able to target you either.
+Rate limits and mute run in the browser, so they're friction for normal use
+rather than security. With rotating handles a mute can't follow someone across
+drives, which is the price of nobody being able to target you either.
 
-## Design — "Obsidian & Lime"
+## Design
 
-Dark-mode-first glassmorphism, adapted from a web design system to a phone:
+Dark, glassy, one hot accent. Obsidian surfaces on a black viewport, neon lime
+for anything you can act on, emerald for the calming tiles. Space Grotesk for
+headings at tight tracking, JetBrains Mono for the small technical labels. Glass
+panels are a 16px backdrop blur behind a 3% white fill with a hairline border,
+and corners are 2rem or more everywhere. A 60px grid, a grain veil and two
+blurred glow spheres keep the dark from going flat.
 
-- **Obsidian base** (`#000` viewport, `#0c0c0c` surfaces) with a single neon lime
-  accent (`#ccff00`) and emerald (`#10b981`) for de-escalating actions only.
-- **Space Grotesk** headings at `-0.06em` tracking with an italic lime-to-white
-  gradient span; **JetBrains Mono** for every technical label, uppercase and
-  tracked out to `0.2em`.
-- **Glass** is `rgba(255,255,255,.03)` over a 16px backdrop blur with a 1px
-  white/10 hairline. Corners are ≥2rem everywhere.
-- A 60px architectural grid, a grain veil, and two blurred glow spheres keep the
-  dark from going flat.
-- **Floating shell**: content rides in a rounded 2.5rem panel above the black
-  viewport, and the composer + tab bar float together as one glass slab.
+Three places it breaks its own rules, on purpose:
 
-Three deliberate departures, all for legibility or safety:
+* **The driving surface isn't glass.** While you're moving, the message panel and
+  the locked notice are solid black with pure white type at 1.7rem. Blur and 60%
+  opacity text are fine parked and wrong at 30 mph.
+* **The grain is a plain veil,** not `mix-blend-mode: overlay`, which drags
+  saturated accents toward grey. The lime has to stay exact.
+* **Swatch labels pick their own ink** by luminance, so all 16 car colours clear
+  4.5:1.
 
-- **The driving surface is not glass.** While you're moving, the message panel
-  and the locked notice render solid black with pure-white type at 1.7rem. Blur
-  and 60%-opacity text are fine when parked and wrong at 30mph.
-- **The grain is a plain veil, not `mix-blend-mode: overlay`.** Overlay drags
-  saturated accents toward mid-grey and the lime has to stay exact.
-- **Swatch labels pick their own ink** by relative luminance (crossover at
-  L=0.179), so every one of the 16 car colours clears 4.7:1.
+Touch targets are 44px or bigger throughout.
 
-Touch targets are ≥44px throughout, including the mono-labelled tab bar.
+## Trying it
 
-## Hardening pass
+You need two devices. It won't invent traffic that isn't there.
 
-A five-dimension audit (security, safety, UX, network, a11y/perf) with adversarial
-verification of the high-severity findings drove a round of fixes:
+* Same place: open it on two phones at the same light.
+* Anywhere: set the same shared code on both, or use the invite button, which
+  sends a link that drops the other person straight into your code.
+* Locally: serve the repo and open two browser windows on `/traffic/`.
 
-- **Critical XSS closed.** A hostile peer id could break out of the Mute button's
-  inline handler and run code that read your *precise* location. `esc()` now
-  escapes the apostrophe, and the Mute button is a delegated `data-id` handler, so
-  wire data never reaches an executable context at all.
-- **Radius bypass closed.** A peer sending zero/absent coordinates used to skip the
-  distance gate and appear as local traffic anywhere. Unlocatable peers are now
-  dropped in public mode.
-- **Flood defence.** The peer set is capped, ids are length-bounded, heartbeats are
-  de-duplicated, oversized frames are rejected, and repaints are coalesced to one
-  per frame — so a hostile broker flood can't freeze the tab.
-- **Dead-socket detection.** The client now tracks last-received bytes and tears
-  down a silently half-open socket (tunnel, dead zone, IP change) instead of
-  showing "connected" into a void. Plus a CONNACK timeout, backoff that survives
-  broker rotation, and reconnect-on-foreground.
-- **Driving surface, per the safety brief.** No unread badge or ping while moving;
-  the read card truncates and updates at most once every 5s so a burst can't strobe
-  it; hazard tiles are a fixed grid (no scrolling for all of them); a one-tap
-  **Quiet** control silences everything; a stationary new user sees "Finding you…"
-  instead of "You're moving."
-- **Accessibility.** Pinch-zoom unblocked, real button + aria-label on the status
-  chip and send button, `role="switch"` on toggles, `aria-pressed`/`aria-current`
-  on chips and nav, a live-region toast, a screen-reader announcer for incoming
-  messages, focus outlines, and 44px touch targets. Information-bearing muted text
-  moved above the 4.5:1 contrast floor.
-- **Also:** message timestamps, GPS-denied retry, location priming before the
-  permission prompt, a home-screen icon + no more phantom PWA claim, GPS watch
-  paused while backgrounded, and no peer-list wipe on GPS jitter.
-
-Deliberately **not** changed (product calls, not defects): free typing stays
-allowed when stopped (canned-only would be safer but isn't what this is);
-`Cops ahead` ships without jurisdiction gating; there's no server, so no
-cross-session bans or content ML. (The hands-free TTS "listen" mode flagged here
-as the main thing worth building has since been built — see Listen mode above.)
-
-## Airtight & friendly pass
-
-A second research round (Web Speech reality, PWA/offline, the cold-start problem,
-a fresh correctness sweep, trust/privacy) drove another batch:
-
-- **Listen mode now survives the phone.** iOS Safari kills speech when the screen
-  sleeps or the app backgrounds — and because Lane mutes the badge/blip while
-  moving, that failure was *silent*. Fixes: a **Screen Wake Lock** ("keep screen
-  awake" toggle) holds the screen so the synth is never suspended, the wedged
-  queue is cleared on return, and the copy is honest on iPhone ("keep the screen
-  on") instead of promising pocket-the-phone audio no web API can deliver.
-- **The ghost town.** A lone user now sees "**You're on the air — first one
-  here**" (proven by watching their own message echo back), not a dead end — with
-  a one-tap **Invite the car next to you** (`navigator.share` → `#lane=` deep-link
-  auto-join) and a **Widen range** shortcut. Onboarding sets the expectation that
-  quiet is normal.
-- **Privacy told straight.** The main screen said "nearby / nothing saved"; it now
-  says the truth — "goes out over a public relay… like shouting out the window."
-  "Private lane" is renamed **Shared code** ("a channel name, not a password"),
-  the safety gate gained an "it's public and it's gone" point, and parked-at-home
-  broadcast is disclosed at the point of use.
-- **Delivery ticks** on your own messages (the same wire echo), a distinct
-  **offline** state (no signal → send blocked, no pointless relay-rotation), an
-  inline **web app manifest** for Android install, **surrogate-safe truncation**
-  (emoji no longer render "�" or garble read-aloud), **handle rotation per cell**
-  so no single broker subscriber can trace a whole drive, a self-lifting **Hush 15
-  min**, Android **haptics**, and the return-while-moving scrollback bug fixed.
-
-Two calls made with the user: build the full set, but **stay single-file** — so
-true offline cold-launch (which needs a service-worker file) is intentionally not
-included; the manifest + HTTP cache covers install and connectivity messaging.
-
-## Testing it
-
-It needs two devices; it will not invent traffic that isn't there.
-
-- **Same place:** open it on two phones at the same light.
-- **Anywhere:** set the same **private lane** word on both.
-- **Locally:** serve the repo and open two browser windows.
-
-## Files
+## What's here
 
 | Path | What |
 |---|---|
 | `traffic/index.html` | The whole app |
-| `index.html` | Unrelated app already in this repo, untouched |
+| `.github/workflows/pages.yml` | Deploys the repo to GitHub Pages on push to main |
+| `index.html` | A different app that already lived in this repo, untouched |
