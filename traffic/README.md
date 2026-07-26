@@ -117,5 +117,11 @@ You need two devices. It won't invent traffic that isn't there.
 | Path | What |
 |---|---|
 | `traffic/index.html` | The whole app |
+| `traffic/og.png` | The 1200×630 card the link unfurls as |
+| `traffic/DOMAIN.md` | Moving it to a real domain |
 | `.github/workflows/pages.yml` | Deploys the repo to GitHub Pages on push to main |
 | `index.html` | A different app that already lived in this repo, untouched |
+
+The link preview tags in `<head>` are absolute URLs pointing at the GitHub Pages
+host. Crawlers don't run JavaScript, so those can't be worked out at load time —
+if the app moves, they get edited by hand. `DOMAIN.md` says which ones.
