@@ -75,18 +75,11 @@ quietly switching your position broadcast back on.
 
 Six seconds, one tap, only while you're stopped.
 
-The catch is that a voice is biometric, and this is the one app where the people
-listening can also see you through a windscreen. Recognising a voice and matching
-it to the car it came out of undoes the whole premise. So the microphone is
-routed through a pitch shifter before the recorder ever sees it, and the shift is
-picked at random per recording, up for some and down for others. Nothing in the
-file handles the unshifted signal, so there's no path by which it reaches the
-relay.
-
-Be clear about what that buys. It defeats the car two back recognising you. It is
-not cryptography: the audio crosses the same public relay as everything else, and
-a shift can be shifted back by anyone who cares enough. The app says exactly that
-before your first recording rather than after it.
+This is the one part of Lane that isn't anonymous, and the app says so in as many
+words before your first recording. It's your actual voice, going out over the
+same public relay as everything else, to people who can also see which car it
+came from. A voice identifies you far more precisely than a colour and a shape
+do. Nothing is disguised, and pretending otherwise would be worse than saying it.
 
 Everything else follows the rules typing already follows. The mic disappears
 while you're moving, a green light mid-recording bins the take rather than

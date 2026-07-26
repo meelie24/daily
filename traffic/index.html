@@ -1097,70 +1097,36 @@ function speak(text){
 function stopSpeech(){try{speechSynthesis.cancel();}catch(e){}ttsPending=0;}
 
 /* ============ VOICE NOTES ============ */
-/* A voice is biometric, and this is the one app where the people listening can
-   also see you through a windscreen. Recognising a voice and matching it to the
-   car it came out of undoes the entire premise, so the voice is altered before
-   it is ever encoded: the microphone goes through a pitch shifter and the
-   recorder only ever sees the shifted signal. Nothing anywhere in this file
-   handles the real one.
-
-   Be clear about what that buys, because the UI says so too: it defeats casual
-   recognition by someone two cars back. It is not cryptography, and somebody
-   determined with the raw audio can shift it back. */
-
-/* Classic two-tap crossfading delay-line shifter. The read pointer walks the
-   delay backwards at (1 - ratio) samples per sample, so it consumes the buffer
-   faster or slower than real time, and two taps half a buffer apart are
-   crossfaded with Hann windows, which sum to exactly 1 at 50% overlap so the
-   seam where the pointer wraps is inaudible. */
-const SHIFT_SRC=`class PitchShift extends AudioWorkletProcessor{
-static get parameterDescriptors(){return[{name:'ratio',defaultValue:1.26,minValue:.6,maxValue:1.8}]}
-constructor(){super();this.N=2048;this.buf=new Float32Array(this.N);this.w=0;this.p=0}
-read(d){const N=this.N;let x=this.w-d;while(x<0)x+=N;while(x>=N)x-=N;
- const i=Math.floor(x),f=x-i;return this.buf[i]*(1-f)+this.buf[(i+1)%N]*f}
-process(inputs,outputs,params){
- const inp=inputs[0]&&inputs[0][0],out=outputs[0]&&outputs[0][0];
- if(!out)return true;
- const N=this.N,half=N/2,k=params.ratio,one=k.length===1,TAU=2*Math.PI;
- for(let i=0;i<out.length;i++){
-  this.buf[this.w]=inp?inp[i]:0;
-  const p=this.p,q=(p+half)%N;
-  out[i]=this.read(p)*.5*(1-Math.cos(TAU*p/N))+this.read(q)*.5*(1-Math.cos(TAU*q/N));
-  let np=p+(1-(one?k[0]:k[i]));
-  while(np<0)np+=N;while(np>=N)np-=N;
-  this.p=np;this.w=(this.w+1)%N;
- }
- return true}}
-registerProcessor('pitch-shift',PitchShift)`;
+/* Your actual voice, going out to everyone in range over a public relay. The
+   app says that in as many words before the first recording, because a voice
+   identifies you far more precisely than the car colour does and someone in
+   range can also see which car it came from. That is a thing to be told plainly
+   rather than a thing to be engineered around. */
 
 const VN_MAX_MS=6000;        /* a hazard call-out, not a phone call */
 const VN_MAX_B64=32000;      /* ~24 KB of audio; MAX_FRAME is 64 KB and has to hold the JSON too */
 const VN_BITS=24000;
-/* Both directions so a group of notes doesn't all sit at the same offset, and
-   picked per recording rather than per user: a constant shift is one guess to
-   undo, and a constant shift per person is a fingerprint of its own. */
-const VN_RATIOS=[.78,.82,.86,1.18,1.24,1.30];
 /* Never taken from the wire. A peer sends an index; we choose the string. */
 const VN_MIME=['audio/webm;codecs=opus','audio/mp4'];
 const vnPickMime=()=>{
   try{for(let i=0;i<VN_MIME.length;i++)if(MediaRecorder.isTypeSupported(VN_MIME[i]))return i;}catch(e){}
   return -1;
 };
-const VN_OK=typeof MediaRecorder!=='undefined'&&!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)
-  &&typeof AudioWorkletNode!=='undefined'&&vnPickMime()>=0;
+const VN_OK=typeof MediaRecorder!=='undefined'&&!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)&&vnPickMime()>=0;
 /* Chrome records Opus in WebM, Safari records AAC in MP4, and Safari can't play
    the first. Say so on the bubble rather than presenting a play button that
    does nothing. */
 const vnPlayable=ci=>{try{return !!new Audio().canPlayType(VN_MIME[ci]||'');}catch(e){return false;}};
 
-let vnRec=null,vnStream=null,vnCtx=null,vnStopT=null,vnStartedAt=0,vnBusy=false;
+let vnRec=null,vnStream=null,vnStopT=null,vnStartedAt=0,vnBusy=false;
 let vnPlaying=null,vnPlayingId='';
 
+/* Stopping the tracks is what turns the browser's recording indicator off, so
+   it happens on every exit path, including the ones that throw. */
 function vnCleanup(){
   if(vnStopT){clearTimeout(vnStopT);vnStopT=null;}
   try{if(vnStream)vnStream.getTracks().forEach(t=>t.stop());}catch(e){}
-  try{if(vnCtx)vnCtx.close();}catch(e){}
-  vnRec=null;vnStream=null;vnCtx=null;
+  vnRec=null;vnStream=null;
 }
 
 async function vnStart(){
@@ -1172,21 +1138,12 @@ async function vnStart(){
   if(cd){toast(cd);return;}
   vnBusy=true;renderDock();
   try{
+    /* Noise suppression and gain control are on because the input here is a
+       phone on a dashboard with an engine running. */
     vnStream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
-    /* A dedicated context: the shared one is tuned for blips and may be
-       suspended, and closing this one is how the mic indicator goes away. */
-    vnCtx=new (window.AudioContext||window.webkitAudioContext)();
-    /* The worklet ships as a Blob URL so the app stays a single file. */
-    const url=URL.createObjectURL(new Blob([SHIFT_SRC],{type:'application/javascript'}));
-    try{await vnCtx.audioWorklet.addModule(url);}finally{URL.revokeObjectURL(url);}
-    const node=new AudioWorkletNode(vnCtx,'pitch-shift');
-    node.parameters.get('ratio').value=VN_RATIOS[Math.floor(Math.random()*VN_RATIOS.length)];
-    const dest=vnCtx.createMediaStreamDestination();
-    vnCtx.createMediaStreamSource(vnStream).connect(node);
-    node.connect(dest);
     const ci=vnPickMime();
     const chunks=[];
-    vnRec=new MediaRecorder(dest.stream,{mimeType:VN_MIME[ci],audioBitsPerSecond:VN_BITS});
+    vnRec=new MediaRecorder(vnStream,{mimeType:VN_MIME[ci],audioBitsPerSecond:VN_BITS});
     vnRec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};
     vnRec.onstop=()=>{
       const ms=Date.now()-vnStartedAt;
@@ -1262,9 +1219,8 @@ window.vnStop=vnStop;window.vnCancel=vnCancel;
 window.vnMaybeStart=()=>{
   if(S.vnTold){vnStart();return;}
   openSheet(`<h3>About voice notes</h3>
-   <p style="font-size:.88rem;color:var(--txt-2);line-height:1.6;margin-bottom:14px">Lane changes the pitch of your voice before it records, so what leaves your phone isn’t what you sound like. Everyone gets a different shift, and nothing here ever touches the real recording.</p>
-   <p style="font-size:.88rem;color:var(--txt-2);line-height:1.6;margin-bottom:14px">That stops the car behind recognising you. It is <b style="color:var(--txt)">not</b> protection against someone determined: the audio still crosses a public relay, and a shift can be shifted back. Say what you’d say out of a window, not more.</p>
-   <p style="font-size:.88rem;color:var(--txt-2);line-height:1.6;margin-bottom:18px">${VN_MAX_MS/1000} seconds, then it stops on its own. Only while you’re stopped.</p>
+   <p style="font-size:.88rem;color:var(--txt-2);line-height:1.6;margin-bottom:14px">This one isn’t anonymous the way the rest of Lane is. It’s <b style="color:var(--txt)">your actual voice</b>, going to everyone in range over the same public relay, and the people hearing it can see which car it came from.</p>
+   <p style="font-size:.88rem;color:var(--txt-2);line-height:1.6;margin-bottom:18px">Say what you’d shout out of the window. ${VN_MAX_MS/1000} seconds, then it stops on its own, and only while you’re stopped.</p>
    <button class="btn" onclick="closeSheet();S.vnTold=1;save();vnStart()">Record one</button>`);
 };
 
