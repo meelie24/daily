@@ -23,6 +23,14 @@ The square size is fixed and deliberately not tied to the Range setting. If it
 were, two cars parked side by side with different Range settings would end up in
 different rooms and never see each other.
 
+One limit worth knowing, because a geohash square keeps a constant span in
+degrees and degrees of longitude get shorter towards the poles. At the equator a
+square is about 4.9 km wide, at 60° it's 2.4 km, and past roughly **66°** the
+nine squares stop covering the full 2 km range from east to west. So above the
+Arctic Circle, two cars near the far end of that range on an east-west line can
+miss each other. Everywhere with meaningful traffic is well inside it, and the
+tests state the bound rather than sampling below it and calling that a pass.
+
 Transport is MQTT over a WebSocket, hand written in about 90 lines so the page
 doesn't need a CDN. QoS 0 only, because a chat message that turns up late is
 worthless anyway.
@@ -62,6 +70,34 @@ wearing a hat.
 
 Joining remembers whatever code you were on, so leaving puts you back rather than
 quietly switching your position broadcast back on.
+
+## Voice notes
+
+Six seconds, one tap, only while you're stopped.
+
+The catch is that a voice is biometric, and this is the one app where the people
+listening can also see you through a windscreen. Recognising a voice and matching
+it to the car it came out of undoes the whole premise. So the microphone is
+routed through a pitch shifter before the recorder ever sees it, and the shift is
+picked at random per recording, up for some and down for others. Nothing in the
+file handles the unshifted signal, so there's no path by which it reaches the
+relay.
+
+Be clear about what that buys. It defeats the car two back recognising you. It is
+not cryptography: the audio crosses the same public relay as everything else, and
+a shift can be shifted back by anyone who cares enough. The app says exactly that
+before your first recording rather than after it.
+
+Everything else follows the rules typing already follows. The mic disappears
+while you're moving, a green light mid-recording bins the take rather than
+sending half a sentence, and Quiet kills playback and recording together. In
+Listen mode an incoming note plays itself, since not looking at the screen is the
+entire point; outside Listen mode it waits for a tap, because unprompted audio
+from a stranger is startling if you didn't ask for it.
+
+Chrome records Opus in WebM and Safari records AAC in MP4, and Safari can't play
+the first. Where that happens the bubble says so instead of showing a play button
+that does nothing.
 
 ## Safety, and what it cost
 

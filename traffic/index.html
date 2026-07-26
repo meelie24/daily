@@ -290,6 +290,29 @@ input[type=text]::placeholder{color:var(--txt-3)}
 .meetcard .meet-in{display:block;font-size:.82rem;color:var(--txt-2);margin-top:6px;line-height:1.55}
 .meetcard .btn{margin-top:12px}
 
+/* voice notes */
+.mic{flex:0 0 auto;width:46px;height:46px;border-radius:50%;border:1px solid var(--line-2);
+  background:var(--glass-2);color:var(--txt);display:grid;place-items:center;cursor:pointer}
+.mic svg{width:21px;height:21px;fill:currentColor}
+.mic.on{background:var(--danger);border-color:var(--danger);color:#fff}
+.mic:disabled{opacity:.4}
+.vn-rec{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:10px;padding:11px 13px;
+  border-radius:1.2rem;background:rgba(255,77,77,.08);border:1px solid rgba(255,77,77,.35)}
+.vn-rec b{font-size:.86rem;color:var(--danger)}
+.vn-rec .mono{font-size:.72rem;color:var(--txt-2);flex:1}
+.vn-dot{width:9px;height:9px;border-radius:50%;background:var(--danger);animation:vnpulse 1.1s infinite}
+@keyframes vnpulse{0%,100%{opacity:1}50%{opacity:.25}}
+.vn{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:8px 12px;margin-top:2px;
+  border-radius:1.1rem;border:1px solid var(--line-2);background:var(--glass-2);color:var(--txt);cursor:pointer}
+.vn.on{border-color:var(--lime);background:rgba(204,255,0,.1)}
+.vn-ico{font-size:.8rem;color:var(--lime);width:14px;text-align:center}
+.vn-bars{display:flex;align-items:center;gap:3px;flex:1;height:20px}
+.vn-bars i{flex:1;max-width:4px;border-radius:2px;background:var(--txt-3)}
+.vn.on .vn-bars i{background:var(--lime)}
+.vn-secs{font-size:.72rem;color:var(--txt-2)}
+.vn-dead{color:var(--txt-2);font-size:.84rem}
+@media (prefers-reduced-motion:reduce){.vn-dot{animation:none}}
+
 /* onboarding */
 #gate{position:fixed;inset:0;z-index:200;background:var(--void);overflow-y:auto;display:none;
   padding:calc(20px + env(safe-area-inset-top)) 10px calc(20px + env(safe-area-inset-bottom))}
@@ -416,7 +439,7 @@ function meetCard(){
 /* What to call the current room in the summary rows. */
 const laneLabel=()=>inMeet()?MEET.name:S.lane.trim();
 
-const blank=()=>({car:{color:-1,body:0},radius:500,lane:'',prevLane:'',broker:0,customBroker:'',gate:0,sound:true,listen:false,keepAwake:true});
+const blank=()=>({car:{color:-1,body:0},radius:500,lane:'',prevLane:'',broker:0,customBroker:'',gate:0,sound:true,listen:false,keepAwake:true,vnTold:0});
 let S=load();
 function load(){
   try{
@@ -566,6 +589,11 @@ function evalMotion(){
   }
   else stillSince=0;
   if(was!==moving){
+    /* Green light mid-recording. Bin it rather than send it: half a sentence
+       cut off by the lights is noise, and the mic must not stay live while the
+       car is rolling. */
+    if(moving&&vnRec){vnCancel();toast('Moving, so the recording stopped');}
+    if(moving)vnStopPlay();
     if(moving&&draft.trim()){heldDraft=draft;draft='';}
     if(!moving)haptic([12,60,12]);   /* felt 'you can type again' on Android; no-op on iOS */
     renderDock();
@@ -799,6 +827,11 @@ function onWire(raw){
       for(let i=msgs.length-1;i>=0;i--){const mm=msgs[i];
         if(mm.mine&&!mm.delivered&&(mm.id+'|'+(mm.ts|0)+'|'+mm.txt)===key){mm.delivered=true;if(tab==='road'&&!moving)paintStream();break;}}
     }
+    /* A voice note has no text to match on, so the timestamp is the key. */
+    if(m.k==='vn'){
+      for(let i=msgs.length-1;i>=0;i--){const mm=msgs[i];
+        if(mm.mine&&mm.voice&&!mm.delivered&&(mm.ts|0)===(m.ts|0)){mm.delivered=true;if(tab==='road'&&!moving)paintStream();break;}}
+    }
     return;
   }
   if(m.id.length>MAX_ID)return;                 /* bound Map-key and 'seen' growth */
@@ -837,6 +870,24 @@ function onWire(raw){
     seen.add(key);if(seen.size>400)seen=new Set([...seen].slice(-200));
     addMsg({id:m.id,c,b,txt,ts:now,mine:false});
   }
+  if(m.k==='vn'){
+    if(MUTED.has(m.id))return;
+    const a=String(m.a==null?'':m.a);
+    /* Everything here is attacker-controlled. Reject on shape before decoding:
+       a strict base64 charset, a hard size cap so one packet can't eat memory,
+       and a codec INDEX rather than a mime string, so the type on the Blob is
+       always one we chose. */
+    if(!a||a.length>VN_MAX_B64||!/^[A-Za-z0-9+/]+={0,2}$/.test(a))return;
+    const ci=m.ci|0;
+    if(ci<0||ci>=VN_MIME.length)return;
+    const ms=clamp(m.ms|0,0,VN_MAX_MS);
+    const key=m.id+'|'+(m.ts|0)+'|vn';
+    if(seen.has(key))return;
+    seen.add(key);if(seen.size>400)seen=new Set([...seen].slice(-200));
+    const url=vnURL(a,ci);
+    if(!url)return;
+    addMsg({id:m.id,c,b,txt:'',voice:{url,ci,ms},ts:now,mine:false});
+  }
 }
 /* Hard arrival-rate cap while moving: a burst updates the card at most once per
    DRIVE_MIN_MS, with a trailing paint so the final message still lands. */
@@ -851,19 +902,32 @@ function scheduleDrive(){
    frame collapses to a single rebuild instead of one teardown per message. */
 let streamQ=false;
 function scheduleStream(){if(streamQ)return;streamQ=true;requestAnimationFrame(()=>{streamQ=false;if(tab==='road'&&!moving)paintStream();});}
+let vnSeq=0;
+/* An object URL pins its Blob until it's revoked, so every dropped voice note
+   would otherwise hold onto its audio for the life of the tab. */
+function dropMsg(m){if(m&&m.voice&&m.voice.url){if(vnPlayingId===m.vid)vnStopPlay();try{URL.revokeObjectURL(m.voice.url);}catch(e){}}}
 function addMsg(m){
+  if(m.voice)m.vid='v'+(++vnSeq);
   msgs.push(m);
-  if(msgs.length>120)msgs=msgs.slice(-80);
+  if(msgs.length>120){msgs.slice(0,msgs.length-80).forEach(dropMsg);msgs=msgs.slice(-80);}
   if(tab==='road'){if(moving)scheduleDrive();else scheduleStream();}
   /* No unread badge or ping while moving or quiet, a counter is an obligation
      and an obligation is a glance (safety brief P0 #4). It waits until you stop. */
   else if(!moving&&!quiet){unread++;nav();}
   if(!m.mine&&!quiet){
     const sr=document.getElementById('sr');
-    if(sr)sr.textContent=(m.mine?'You':carName(m))+': '+m.txt;   /* announced once, no history re-read */
+    const said=m.voice?'sent a voice note':m.txt;
+    if(sr)sr.textContent=carName(m)+': '+said;   /* announced once, no history re-read */
     /* Listen mode is the eyes-off channel and replaces the blip; clip so a long
        message doesn't hold the road's attention. */
-    if(S.listen)speak(carName(m)+'. '+clip(m.txt,90));
+    if(m.voice){
+      /* The whole point of a voice note is that you don't have to look, so in
+         Listen mode it plays itself. Only there: unprompted audio from a
+         stranger is startling if you didn't ask for the eyes-off channel. */
+      if(S.listen&&armedThisSession&&vnPlayable(m.voice.ci)&&!vnPlaying)vnPlay(m.vid);
+      else if(!moving&&S.sound)blip();
+    }
+    else if(S.listen)speak(carName(m)+'. '+clip(m.txt,90));
     else if(!moving&&S.sound)blip();
   }
 }
@@ -872,7 +936,7 @@ setInterval(()=>{
   const now=Date.now();let ch=false;
   peers.forEach((p,k)=>{if(now-p.last>PEER_TTL){peers.delete(k);ch=true;}});
   const before=msgs.length;
-  msgs=msgs.filter(m=>now-m.ts<MSG_TTL);
+  msgs=msgs.filter(m=>{const keep=now-m.ts<MSG_TTL;if(!keep)dropMsg(m);return keep;});
   if(ch)schedulePaint();
   if(msgs.length!==before&&tab==='road')paintStream();
 },5000);
@@ -930,6 +994,7 @@ const ICONS={
  cars:'<svg viewBox="0 0 24 24"><path d="M5 17h14M3.5 13.5l1.6-5A2 2 0 0 1 7 7h10a2 2 0 0 1 1.9 1.5l1.6 5"/><path d="M3.5 13.5h17v3.5h-17z"/><circle cx="7.5" cy="17" r="1.6"/><circle cx="16.5" cy="17" r="1.6"/></svg>',
  me:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.8"/><path d="M4.5 20.5c1.2-4 4-6 7.5-6s6.3 2 7.5 6"/></svg>'};
 const SEND='<svg viewBox="0 0 24 24"><path d="M3.4 20.4l18.2-8.4L3.4 3.6l0 6.5 12 1.9-12 1.9z"/></svg>';
+const MIC='<svg viewBox="0 0 24 24"><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-5a3.5 3.5 0 0 0-7 0v5A3.5 3.5 0 0 0 12 15z"/><path d="M18 11.5a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.94V22h2v-2.56a8 8 0 0 0 7-7.94z"/></svg>';
 
 function nav(){
   document.getElementById('nav').innerHTML=[['road','Road'],['cars','Cars'],['me','You']]
@@ -1030,6 +1095,178 @@ function speak(text){
   }catch(e){}
 }
 function stopSpeech(){try{speechSynthesis.cancel();}catch(e){}ttsPending=0;}
+
+/* ============ VOICE NOTES ============ */
+/* A voice is biometric, and this is the one app where the people listening can
+   also see you through a windscreen. Recognising a voice and matching it to the
+   car it came out of undoes the entire premise, so the voice is altered before
+   it is ever encoded: the microphone goes through a pitch shifter and the
+   recorder only ever sees the shifted signal. Nothing anywhere in this file
+   handles the real one.
+
+   Be clear about what that buys, because the UI says so too: it defeats casual
+   recognition by someone two cars back. It is not cryptography, and somebody
+   determined with the raw audio can shift it back. */
+
+/* Classic two-tap crossfading delay-line shifter. The read pointer walks the
+   delay backwards at (1 - ratio) samples per sample, so it consumes the buffer
+   faster or slower than real time, and two taps half a buffer apart are
+   crossfaded with Hann windows, which sum to exactly 1 at 50% overlap so the
+   seam where the pointer wraps is inaudible. */
+const SHIFT_SRC=`class PitchShift extends AudioWorkletProcessor{
+static get parameterDescriptors(){return[{name:'ratio',defaultValue:1.26,minValue:.6,maxValue:1.8}]}
+constructor(){super();this.N=2048;this.buf=new Float32Array(this.N);this.w=0;this.p=0}
+read(d){const N=this.N;let x=this.w-d;while(x<0)x+=N;while(x>=N)x-=N;
+ const i=Math.floor(x),f=x-i;return this.buf[i]*(1-f)+this.buf[(i+1)%N]*f}
+process(inputs,outputs,params){
+ const inp=inputs[0]&&inputs[0][0],out=outputs[0]&&outputs[0][0];
+ if(!out)return true;
+ const N=this.N,half=N/2,k=params.ratio,one=k.length===1,TAU=2*Math.PI;
+ for(let i=0;i<out.length;i++){
+  this.buf[this.w]=inp?inp[i]:0;
+  const p=this.p,q=(p+half)%N;
+  out[i]=this.read(p)*.5*(1-Math.cos(TAU*p/N))+this.read(q)*.5*(1-Math.cos(TAU*q/N));
+  let np=p+(1-(one?k[0]:k[i]));
+  while(np<0)np+=N;while(np>=N)np-=N;
+  this.p=np;this.w=(this.w+1)%N;
+ }
+ return true}}
+registerProcessor('pitch-shift',PitchShift)`;
+
+const VN_MAX_MS=6000;        /* a hazard call-out, not a phone call */
+const VN_MAX_B64=32000;      /* ~24 KB of audio; MAX_FRAME is 64 KB and has to hold the JSON too */
+const VN_BITS=24000;
+/* Both directions so a group of notes doesn't all sit at the same offset, and
+   picked per recording rather than per user: a constant shift is one guess to
+   undo, and a constant shift per person is a fingerprint of its own. */
+const VN_RATIOS=[.78,.82,.86,1.18,1.24,1.30];
+/* Never taken from the wire. A peer sends an index; we choose the string. */
+const VN_MIME=['audio/webm;codecs=opus','audio/mp4'];
+const vnPickMime=()=>{
+  try{for(let i=0;i<VN_MIME.length;i++)if(MediaRecorder.isTypeSupported(VN_MIME[i]))return i;}catch(e){}
+  return -1;
+};
+const VN_OK=typeof MediaRecorder!=='undefined'&&!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)
+  &&typeof AudioWorkletNode!=='undefined'&&vnPickMime()>=0;
+/* Chrome records Opus in WebM, Safari records AAC in MP4, and Safari can't play
+   the first. Say so on the bubble rather than presenting a play button that
+   does nothing. */
+const vnPlayable=ci=>{try{return !!new Audio().canPlayType(VN_MIME[ci]||'');}catch(e){return false;}};
+
+let vnRec=null,vnStream=null,vnCtx=null,vnStopT=null,vnStartedAt=0,vnBusy=false;
+let vnPlaying=null,vnPlayingId='';
+
+function vnCleanup(){
+  if(vnStopT){clearTimeout(vnStopT);vnStopT=null;}
+  try{if(vnStream)vnStream.getTracks().forEach(t=>t.stop());}catch(e){}
+  try{if(vnCtx)vnCtx.close();}catch(e){}
+  vnRec=null;vnStream=null;vnCtx=null;
+}
+
+async function vnStart(){
+  if(vnBusy||vnRec)return;
+  if(!VN_OK){toast('This browser can’t record');return;}
+  if(moving){toast('Not while you’re moving');return;}
+  if(connState!=='live'){toast(connState==='offline'?'You’re offline':'Not connected yet');return;}
+  const cd=cooldown();
+  if(cd){toast(cd);return;}
+  vnBusy=true;renderDock();
+  try{
+    vnStream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+    /* A dedicated context: the shared one is tuned for blips and may be
+       suspended, and closing this one is how the mic indicator goes away. */
+    vnCtx=new (window.AudioContext||window.webkitAudioContext)();
+    /* The worklet ships as a Blob URL so the app stays a single file. */
+    const url=URL.createObjectURL(new Blob([SHIFT_SRC],{type:'application/javascript'}));
+    try{await vnCtx.audioWorklet.addModule(url);}finally{URL.revokeObjectURL(url);}
+    const node=new AudioWorkletNode(vnCtx,'pitch-shift');
+    node.parameters.get('ratio').value=VN_RATIOS[Math.floor(Math.random()*VN_RATIOS.length)];
+    const dest=vnCtx.createMediaStreamDestination();
+    vnCtx.createMediaStreamSource(vnStream).connect(node);
+    node.connect(dest);
+    const ci=vnPickMime();
+    const chunks=[];
+    vnRec=new MediaRecorder(dest.stream,{mimeType:VN_MIME[ci],audioBitsPerSecond:VN_BITS});
+    vnRec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};
+    vnRec.onstop=()=>{
+      const ms=Date.now()-vnStartedAt;
+      vnCleanup();
+      vnBusy=false;
+      vnSend(new Blob(chunks,{type:VN_MIME[ci]}),ci,ms);
+    };
+    vnStartedAt=Date.now();
+    vnRec.start();
+    vnBusy=false;
+    haptic(12);
+    vnStopT=setTimeout(()=>{if(vnRec&&vnRec.state==='recording')vnRec.stop();},VN_MAX_MS);
+    renderDock();
+  }catch(e){
+    vnCleanup();vnBusy=false;renderDock();
+    toast(e&&e.name==='NotAllowedError'?'Microphone is blocked':'Couldn’t start recording');
+  }
+}
+function vnStop(){
+  if(vnRec&&vnRec.state==='recording')vnRec.stop(); else {vnCleanup();vnBusy=false;renderDock();}
+}
+function vnCancel(){
+  /* Swap the handler so the take is dropped rather than sent, then only wait for
+     onstop if there is actually something to stop. A recorder already inactive
+     never fires it, and waiting on that leaves the composer stuck on
+     "Recording…" with a live microphone behind it. */
+  const r=vnRec;
+  if(r&&r.state==='recording'){r.onstop=()=>{vnCleanup();vnBusy=false;renderDock();};r.stop();return;}
+  vnCleanup();vnBusy=false;renderDock();
+}
+
+const b64=buf=>{let s='';const u=new Uint8Array(buf);for(let i=0;i<u.length;i++)s+=String.fromCharCode(u[i]);return btoa(s);};
+const unb64=s=>{const bin=atob(s),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u;};
+
+async function vnSend(blob,ci,ms){
+  renderDock();
+  if(ms<400){toast('Too short');return;}
+  try{
+    const a=b64(await blob.arrayBuffer());
+    if(a.length>VN_MAX_B64){toast('That was too long to send');return;}
+    const ts=Date.now();
+    if(!pub({v:1,k:'vn',id:MYID,c:S.car.color,b:S.car.body,la:wireLat(),lo:wireLng(),a,ci,ms:Math.round(ms),ts})){
+      toast('Voice note didn’t go out');return;
+    }
+    sendLog.push(ts);
+    haptic(15);
+    addMsg({id:MYID,c:S.car.color,b:S.car.body,txt:'',voice:{url:vnURL(a,ci),ci,ms:Math.round(ms)},ts,mine:true,delivered:false});
+  }catch(e){toast('Couldn’t send that');}
+}
+
+/* Built here from a mime string we chose, never one off the wire, so a hostile
+   peer can't talk the browser into treating their bytes as something else. */
+function vnURL(a,ci){
+  try{return URL.createObjectURL(new Blob([unb64(a)],{type:VN_MIME[ci]}));}catch(e){return '';}
+}
+
+function vnPlay(id){
+  const m=msgs.find(x=>x.voice&&x.vid===id);
+  if(!m||!m.voice.url)return;
+  if(vnPlaying){try{vnPlaying.pause();}catch(e){}vnPlaying=null;
+    if(vnPlayingId===id){vnPlayingId='';paintStream();return;}}   /* tapping the playing one stops it */
+  const a=new Audio(m.voice.url);
+  vnPlaying=a;vnPlayingId=id;
+  a.onended=a.onerror=()=>{if(vnPlayingId===id){vnPlaying=null;vnPlayingId='';paintStream();}};
+  a.play().catch(()=>{vnPlaying=null;vnPlayingId='';paintStream();toast('Tap again to play');});
+  paintStream();
+}
+function vnStopPlay(){if(vnPlaying){try{vnPlaying.pause();}catch(e){}}vnPlaying=null;vnPlayingId='';}
+
+window.vnStop=vnStop;window.vnCancel=vnCancel;
+/* Said once, before the first recording, because the trade here isn't obvious
+   and finding out afterwards is too late. */
+window.vnMaybeStart=()=>{
+  if(S.vnTold){vnStart();return;}
+  openSheet(`<h3>About voice notes</h3>
+   <p style="font-size:.88rem;color:var(--txt-2);line-height:1.6;margin-bottom:14px">Lane changes the pitch of your voice before it records, so what leaves your phone isn’t what you sound like. Everyone gets a different shift, and nothing here ever touches the real recording.</p>
+   <p style="font-size:.88rem;color:var(--txt-2);line-height:1.6;margin-bottom:14px">That stops the car behind recognising you. It is <b style="color:var(--txt)">not</b> protection against someone determined: the audio still crosses a public relay, and a shift can be shifted back. Say what you’d say out of a window, not more.</p>
+   <p style="font-size:.88rem;color:var(--txt-2);line-height:1.6;margin-bottom:18px">${VN_MAX_MS/1000} seconds, then it stops on its own. Only while you’re stopped.</p>
+   <button class="btn" onclick="closeSheet();S.vnTold=1;save();vnStart()">Record one</button>`);
+};
 
 /* ============ SHARED BITS ============ */
 const carName=p=>COLORS[p.c][0]+' '+BODIES[p.b];
@@ -1135,6 +1372,18 @@ function rRoad(){
 /* True before the very first fix arrives and no error yet, distinct from moving,
    so a new user on the sofa isn't told "You're moving". */
 const locating=()=>!pos&&!gpsErr&&!S.lane.trim();
+/* A voice note bubble. Where the recording codec can't be played here, say that
+   instead of offering a play button that silently does nothing. */
+function voiceHTML(m){
+  const secs=Math.max(1,Math.round(m.voice.ms/1000));
+  if(!vnPlayable(m.voice.ci))
+    return `<div class="txt vn-dead">Voice note, ${secs}s. This phone can’t play the format it was recorded in.</div>`;
+  const on=vnPlayingId===m.vid;
+  return `<button class="vn ${on?'on':''}" data-vn="${esc(m.vid)}" aria-label="${on?'Stop':'Play'} voice note, ${secs} seconds">
+    <span class="vn-ico">${on?'&#9632;':'&#9654;'}</span>
+    <span class="vn-bars">${[7,13,9,16,11,18,8,14,10,6].map(h=>`<i style="height:${h}px"></i>`).join('')}</span>
+    <span class="vn-secs mono">${secs}s</span></button>`;
+}
 /* Coarse relative time, a 6-minute-old "Accident ahead" must not read as live. */
 function ago(ts){const s=Math.max(0,(Date.now()-ts)/1000);return s<45?'now':s<90?'1m':s<3600?Math.round(s/60)+'m':Math.round(s/3600)+'h';}
 /* Empty-state copy, state-aware so "quiet" never reads as "broken". */
@@ -1160,8 +1409,14 @@ function paintDrive(el){
     el.innerHTML=`<div class="drive"><div class="who">Finding you</div><div class="txt">One moment…</div></div>`;driveAt=Date.now();return;
   }
   const last=msgs[msgs.length-1];
+  /* A voice note has no text to put on the driving card, and a play button here
+     would be asking for a tap at speed. In Listen mode it has already played
+     itself; otherwise it just waits until you stop. */
+  const body=last&&last.voice
+    ?(S.listen?'Playing a voice note.':'Voice note. It’ll wait until you stop.')
+    :last?clip(last.txt,60):'';
   el.innerHTML=last
-    ?`<div class="drive"><div class="who">${esc(last.mine?'You said':label(last.id,last.c,last.b,dupCombos()))}</div><div class="txt">${esc(clip(last.txt,60))}</div></div>`
+    ?`<div class="drive"><div class="who">${esc(last.mine?'You said':label(last.id,last.c,last.b,dupCombos()))}</div><div class="txt">${esc(body)}</div></div>`
     :`<div class="drive"><div class="who">Quiet out here</div><div class="txt">Eyes up.</div></div>`;
   driveAt=Date.now();
 }
@@ -1190,7 +1445,7 @@ function paintStream(){
     :`<div class="msg ${m.mine?'mine':''}">${swatch(m.c)}
        <div class="bub"><div class="who">${esc(m.mine?'You':label(m.id,m.c,m.b,dup))}<span class="when" data-ts="${m.ts}">${ago(m.ts)}</span>${
          m.mine?`<span class="tick ${m.delivered?'ok':''}" aria-label="${m.delivered?'delivered':'sending'}">${m.delivered?'✓':'·'}</span>`:''}</div>
-       <div class="txt">${esc(m.txt)}</div></div></div>`).join('');
+       ${m.voice?voiceHTML(m):`<div class="txt">${esc(m.txt)}</div>`}</div></div>`).join('');
   const s=document.getElementById('stream');
   if(s&&nearBottom)s.scrollIntoView({block:'end'});
 }
@@ -1244,9 +1499,14 @@ function stopDock(){
   ${quiet?`<button class="quiet-btn on" style="margin-bottom:10px" onclick="toggleQuiet()">${hushUntil?'Hushed · tap to come back':'Quiet on · tap to come back'}</button>`
     :`<div class="tiles" style="padding-bottom:0;margin-bottom:8px"><button class="tile" onclick="hush()">Hush 15 min</button><button class="tile" onclick="toggleQuiet()">Quiet</button></div>`}
   ${heldDraft?`<button class="btn ghost sm" style="margin-bottom:10px" onclick="restore()">Finish your message?</button>`:''}
+  ${vnRec?`<div class="vn-rec"><span class="vn-dot"></span><b>Recording…</b>
+    <span class="mono">stops itself at ${VN_MAX_MS/1000}s</span>
+    <button class="chip" onclick="vnStop()">Send</button>
+    <button class="chip" onclick="vnCancel()">Bin it</button></div>`:''}
   <div class="row">
     <textarea id="ta" rows="1" maxlength="240" placeholder="Say it to the cars nearby…"
       oninput="onType(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendNow();}">${esc(draft)}</textarea>
+    ${VN_OK&&!draft.trim()?`<button class="mic ${vnRec?'on':''}" onclick="${vnRec?'vnStop()':'vnMaybeStart()'}" aria-label="${vnRec?'Stop recording':'Record a voice note'}" ${vnBusy?'disabled':''}>${MIC}</button>`:''}
     <button class="send" onclick="sendNow()" aria-label="Send" ${draft.trim()?'':'disabled'}>${SEND}</button>
   </div>
   <div class="cap" id="cap" style="${draft.length>180?'':'display:none'}">${left} left</div>`;
@@ -1282,7 +1542,7 @@ function inviteSheet(url){
 }
 window.toggleQuiet=()=>{
   quiet=!quiet;
-  if(quiet)stopSpeech();   /* Quiet silences everything, including anything mid-sentence */
+  if(quiet){stopSpeech();vnStopPlay();vnCancel();}   /* Quiet silences everything, including anything mid-sentence or mid-recording */
   else{hushUntil=0;if(hushT){clearTimeout(hushT);hushT=null;}}  /* manual come-back also ends a hush */
   toast(quiet?'Quiet on, nothing will surface':'Quiet off');
   renderDock();paintStream();
@@ -1400,7 +1660,9 @@ function toggleMute(id){
    enters an executable context, no matter what esc() does. */
 view.addEventListener('click',e=>{
   const b=e.target.closest('[data-mute]');
-  if(b)toggleMute(b.getAttribute('data-mute'));
+  if(b){toggleMute(b.getAttribute('data-mute'));return;}
+  const v=e.target.closest('[data-vn]');
+  if(v)vnPlay(v.getAttribute('data-vn'));
 });
 
 /* ============ YOU / SETTINGS ============ */
