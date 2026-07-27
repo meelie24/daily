@@ -700,8 +700,15 @@ function evalMotion(){
   if(was!==moving){
     /* Green light mid-recording. Bin it rather than send it: half a sentence
        cut off by the lights is noise, and the mic must not stay live while the
-       car is rolling. */
-    if(moving&&vnRec){vnCancel();toast('Moving, so the recording stopped');}
+       car is rolling.
+
+       Only when the GPS actually says you're moving, though. The gate also
+       reports "moving" when it simply can't tell, and losing the fix under a
+       bridge or in a multi-storey is common enough that binning a twenty-second
+       message over it would be its own kind of broken. Someone recording has
+       the phone in their hand and can stop; someone who has genuinely pulled
+       away has not. */
+    if(moving&&vnRec&&moveReason==='speed'){vnCancel();toast('Moving, so the recording stopped');}
     if(moving)vnStopPlay();
     if(moving&&draft.trim()){heldDraft=draft;draft='';}
     if(!moving)haptic([12,60,12]);   /* felt 'you can type again' on Android; no-op on iOS */

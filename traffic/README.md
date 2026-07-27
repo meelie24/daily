@@ -109,7 +109,23 @@ already passed that gate when it arrived, and the proof is still required.
 
 ## Voice notes
 
-Six seconds, one tap, only while you're stopped.
+Twenty seconds, one tap, only while you're stopped. Hit the limit and it sends
+itself rather than being thrown away for being long enough.
+
+Length and bitrate are one decision, not two. It all rides in a single MQTT
+frame against a 64 KB cap that the JSON shares, and base64 adds a third on top,
+so twenty seconds at the 24 kbit/s the six-second version used would have been
+80 KB and simply wouldn't have gone out. At 12 kbit/s it's about 40 KB encoded,
+and Opus holds up fine down there for speech, which is all anyone records into a
+phone on a dashboard.
+
+While you talk there's a live level meter. It's an analyser tapped off the same
+MediaStream, not a link in the chain — the recorder is attached to the stream
+itself, so nothing in the meter can alter a sample of what gets encoded.
+
+The bars on a sent note are the real waveform, decoded from the audio rather
+than drawn for effect, and computed at both ends so nothing extra rides the
+wire. Playing one fills the bars up to the playhead.
 
 This is the one part of Lane that isn't anonymous, and the app says so in as many
 words before your first recording. It's your actual voice, going out over the
