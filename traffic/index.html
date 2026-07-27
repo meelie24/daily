@@ -305,9 +305,10 @@ input[type=text]::placeholder{color:var(--txt-3)}
 .vn-rec b{font-size:.86rem;color:var(--danger)}
 .vn-rec .mono{font-size:.72rem;color:var(--txt-2)}
 .vn-rec.binning{background:rgba(255,77,77,.2);border-color:var(--danger)}
-.vn-slide{flex:1;text-align:right;font-size:.72rem;color:var(--txt-2);opacity:.45;transition:opacity .1s linear}
-.vn-hint{color:var(--txt-3);font-size:.7rem}
-.chip.on{border-color:var(--lime);color:var(--lime)}
+.vn-slide,.vn-hint,.vn-lockmsg{font-family:inherit;text-transform:none;letter-spacing:-.01em;font-size:.76rem}
+.vn-slide{flex:1;text-align:right;color:var(--txt-2);opacity:.45;transition:opacity .1s linear}
+.vn-lockmsg{flex:1;color:var(--txt-2)}
+.vn-hint{color:var(--txt-3)}
 /* The mic is a drag handle now, so the browser must not claim the gesture for
    scrolling or the long-press menu. */
 .mic{touch-action:none;-webkit-touch-callout:none;user-select:none}
@@ -324,17 +325,21 @@ input[type=text]::placeholder{color:var(--txt-3)}
 .vn-play{flex:0 0 auto;width:36px;height:36px;border-radius:50%;border:0;background:rgba(204,255,0,.14);
   color:var(--lime);font-size:.72rem;line-height:1;display:grid;place-items:center;cursor:pointer}
 .vn.on .vn-play{background:var(--lime);color:#000}
-.vn-rate{flex:0 0 auto;min-width:34px;height:26px;padding:0 7px;border-radius:999px;border:1px solid var(--line-2);
-  background:none;color:var(--txt-2);font-size:.68rem;font-family:var(--mono,ui-monospace,monospace);cursor:pointer}
+.vn-main{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:1px}
+.vn-foot{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.vn-rate{flex:0 0 auto;min-width:32px;height:22px;padding:0 7px;border-radius:999px;border:1px solid var(--line-2);
+  background:none;color:var(--txt-2);font-size:.66rem;cursor:pointer}
 .vn-rate.on{border-color:var(--lime);color:var(--lime)}
-.vn-bars{display:flex;align-items:center;gap:2px;flex:1;height:30px;min-width:0;cursor:pointer;touch-action:none}
-.vn-bars i{flex:1;min-width:2px;max-width:4px;border-radius:2px;background:var(--txt-3);
+.vn-bars{display:flex;align-items:center;gap:2px;width:100%;height:30px;min-width:0;cursor:pointer;touch-action:none}
+/* No max-width: capping the bars leaves them bunched at the left with dead
+   space after, instead of spanning the row like a waveform should. */
+.vn-bars i{flex:1;min-width:2px;border-radius:2px;background:var(--txt-3);
   transition:background .12s linear}
 /* Played-so-far, filled in behind the playhead rather than lighting the lot. */
 .vn-bars i.done{background:var(--lime)}
 .vn.on .vn-bars i{background:rgba(235,235,235,.34)}
 .vn.on .vn-bars i.done{background:var(--lime)}
-.vn-secs{font-size:.72rem;color:var(--txt-2)}
+.vn-secs{flex:0 0 auto;font-size:.72rem;color:var(--txt-2)}
 .vn-dead{color:var(--txt-2);font-size:.84rem}
 @media (prefers-reduced-motion:reduce){.vn-dot{animation:none}}
 
@@ -1384,7 +1389,7 @@ function vnMeterStart(){
     hist.push(Math.max(4,Math.min(100,Math.round(rms*260))));
     hist.shift();
     const bars=document.querySelectorAll('.vn-live i');
-    for(let i=0;i<bars.length;i++)bars[i].style.height=hist[i]*.24+'px';
+    for(let i=0;i<bars.length;i++)bars[i].style.height=Math.max(3,hist[i]*.26)+'px';
     const el=document.getElementById('vn-count');
     if(el){
       const t=Math.floor((now-vnStartedAt)/1000);
@@ -1766,13 +1771,20 @@ function voiceHTML(m){
   /* Real peaks once they're decoded; a flat placeholder until then, so the
      bubble never jumps size when the waveform lands. */
   const w=m.voice.wave||new Array(VN_BARS).fill(26);
+  /* Time under the waveform rather than beside it. Twenty-eight bars plus a play
+     button, a clock and a speed pill do not fit one row on a phone, and the
+     waveform is the thing worth the width. */
   return `<div class="vn ${on?'on':''}">
     <button class="vn-play" data-vn="${esc(m.vid)}" aria-label="${on?'Pause':'Play'} voice note, ${mmss(m.voice.ms)}">${on?'&#9613;&#9613;':'&#9654;'}</button>
-    <span class="vn-bars" data-scrub="${esc(m.vid)}" role="slider" aria-label="Seek"
-      aria-valuemin="0" aria-valuemax="${Math.round(m.voice.ms/1000)}" aria-valuenow="0"
-      >${w.map(h=>`<i style="height:${Math.max(3,Math.round(h*.22))}px"></i>`).join('')}</span>
-    <span class="vn-secs mono" data-t="${esc(m.vid)}">${mmss(m.voice.ms)}</span>
-    <button class="vn-rate ${vnRate!==1?'on':''}" data-rate="1" aria-label="Playback speed">${vnRate}&#215;</button>
+    <span class="vn-main">
+      <span class="vn-bars" data-scrub="${esc(m.vid)}" role="slider" aria-label="Seek"
+        aria-valuemin="0" aria-valuemax="${Math.round(m.voice.ms/1000)}" aria-valuenow="0"
+        >${w.map(h=>`<i style="height:${Math.max(3,Math.round(h*.24))}px"></i>`).join('')}</span>
+      <span class="vn-foot">
+        <span class="vn-secs mono" data-t="${esc(m.vid)}">${mmss(m.voice.ms)}</span>
+        <button class="vn-rate ${vnRate!==1?'on':''}" data-rate="1" aria-label="Playback speed">${vnRate}&#215;</button>
+      </span>
+    </span>
   </div>`;
 }
 /* Coarse relative time, a 6-minute-old "Accident ahead" must not read as live. */
@@ -1895,13 +1907,13 @@ function stopDock(){
   ${heldDraft?`<button class="btn ghost sm" style="margin-bottom:10px" onclick="restore()">Finish your message?</button>`:''}
   ${vnRec?`<div class="vn-rec">
     <div class="vn-recrow"><span class="vn-dot"></span><b class="mono" id="vn-count">0:00</b>
-      <span class="vn-slide mono" id="vn-slide">${vnLocked?'':'Slide left to cancel'}</span></div>
+      <span class="vn-slide" id="vn-slide">${vnLocked?'':'Slide left to cancel'}</span></div>
     <div class="vn-live">${new Array(VN_BARS).fill(0).map(()=>'<i></i>').join('')}</div>
     ${vnLocked?`<div class="vn-recrow" style="margin-top:9px">
-      <span class="mono" style="flex:1">Locked. Sends itself at ${VN_MAX_MS/1000}s.</span>
+      <span class="vn-lockmsg">Locked. Sends itself at ${VN_MAX_MS/1000}s.</span>
       <button class="chip" onclick="vnCancel()">Bin it</button>
       <button class="chip on" onclick="vnStop()">Send</button></div>`
-     :`<div class="vn-recrow" style="margin-top:7px"><span class="mono vn-hint">Slide up to lock &#8593;</span></div>`}
+     :`<div class="vn-recrow" style="margin-top:7px"><span class="vn-hint">Slide up to lock &#8593;</span></div>`}
     </div>`:''}
   <div class="row">
     <textarea id="ta" rows="1" maxlength="240" placeholder="Say it to the cars…"
