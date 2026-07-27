@@ -188,7 +188,7 @@ input,textarea{font-family:inherit;font-size:1rem;color:var(--txt)}
 /* Listen + Quiet side by side while moving, both big, both one tap. */
 .drive-ctrls{display:grid;grid-template-columns:1fr 1fr;gap:9px}
 .drive-ctrls .quiet-btn{margin-top:0}
-.row{display:flex;gap:9px;align-items:flex-end}
+.row{display:flex;gap:7px;align-items:flex-end}
 .row textarea{flex:1;min-width:0;background:var(--glass);border:1px solid var(--line);border-radius:1.5rem;
   padding:14px 16px;font-size:1rem;letter-spacing:-.01em;resize:none;max-height:96px;min-height:52px;line-height:1.35;outline:none}
 .row textarea:focus{border-color:rgba(204,255,0,.5)}
@@ -291,27 +291,74 @@ input[type=text]::placeholder{color:var(--txt-3)}
 .meetcard .btn{margin-top:12px}
 
 /* voice notes */
-.mic{flex:0 0 auto;width:46px;height:46px;border-radius:50%;border:1px solid var(--line-2);
+/* Three controls plus a text field is tight at 390px. 44px keeps the touch
+   target legal while leaving the placeholder room to sit on one line. */
+.mic{flex:0 0 auto;width:44px;height:44px;margin-bottom:4px;border-radius:50%;border:1px solid var(--line-2);
   background:var(--glass-2);color:var(--txt);display:grid;place-items:center;cursor:pointer}
-.mic svg{width:21px;height:21px;fill:currentColor}
+.mic svg{width:20px;height:20px;fill:currentColor}
 .mic.on{background:var(--danger);border-color:var(--danger);color:#fff}
 .mic:disabled{opacity:.4}
-.vn-rec{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:10px;padding:11px 13px;
-  border-radius:1.2rem;background:rgba(255,77,77,.08);border:1px solid rgba(255,77,77,.35)}
+.vn-rec{margin-bottom:10px;padding:11px 13px;border-radius:1.2rem;
+  background:rgba(255,77,77,.08);border:1px solid rgba(255,77,77,.35)}
+.vn-recrow{display:flex;align-items:center;gap:9px}
+.vn-recrow+.vn-recrow{margin-top:8px}
 .vn-rec b{font-size:.86rem;color:var(--danger)}
-.vn-rec .mono{font-size:.72rem;color:var(--txt-2);flex:1}
+.vn-rec .mono{font-size:.72rem;color:var(--txt-2)}
+.vn-rec.binning{background:rgba(255,77,77,.2);border-color:var(--danger)}
+.vn-slide,.vn-hint,.vn-lockmsg{font-family:inherit;text-transform:none;letter-spacing:-.01em;font-size:.76rem}
+.vn-slide{flex:1;text-align:right;color:var(--txt-2);opacity:.45;transition:opacity .1s linear}
+.vn-lockmsg{flex:1;color:var(--txt-2)}
+.vn-hint{color:var(--txt-3)}
+/* The mic is a drag handle now, so the browser must not claim the gesture for
+   scrolling or the long-press menu. */
+.mic{touch-action:none;-webkit-touch-callout:none;user-select:none}
 .vn-dot{width:9px;height:9px;border-radius:50%;background:var(--danger);animation:vnpulse 1.1s infinite}
 @keyframes vnpulse{0%,100%{opacity:1}50%{opacity:.25}}
-.vn{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:8px 12px;margin-top:2px;
-  border-radius:1.1rem;border:1px solid var(--line-2);background:var(--glass-2);color:var(--txt);cursor:pointer}
+/* The live meter. Heights are written per frame from the analyser, so only the
+   colour and the geometry live here. */
+.vn-live{display:flex;align-items:center;justify-content:space-between;gap:2px;height:26px;margin:9px 0 2px}
+.vn-live i{flex:1;min-width:2px;height:1px;border-radius:2px;background:var(--danger);
+  transition:height .06s linear;align-self:center}
+.vn{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:6px 8px 6px 6px;margin-top:2px;
+  border-radius:1.1rem;border:1px solid var(--line-2);background:var(--glass-2);color:var(--txt)}
 .vn.on{border-color:var(--lime);background:rgba(204,255,0,.1)}
-.vn-ico{font-size:.8rem;color:var(--lime);width:14px;text-align:center}
-.vn-bars{display:flex;align-items:center;gap:3px;flex:1;height:20px}
-.vn-bars i{flex:1;max-width:4px;border-radius:2px;background:var(--txt-3)}
-.vn.on .vn-bars i{background:var(--lime)}
-.vn-secs{font-size:.72rem;color:var(--txt-2)}
+.vn-play{flex:0 0 auto;width:36px;height:36px;border-radius:50%;border:0;background:rgba(204,255,0,.14);
+  color:var(--lime);font-size:.72rem;line-height:1;display:grid;place-items:center;cursor:pointer}
+.vn.on .vn-play{background:var(--lime);color:#000}
+.vn-main{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:1px}
+.vn-foot{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.vn-rate{flex:0 0 auto;min-width:32px;height:22px;padding:0 7px;border-radius:999px;border:1px solid var(--line-2);
+  background:none;color:var(--txt-2);font-size:.66rem;cursor:pointer}
+.vn-rate.on{border-color:var(--lime);color:var(--lime)}
+.vn-bars{display:flex;align-items:center;gap:2px;width:100%;height:30px;min-width:0;cursor:pointer;touch-action:none}
+/* No max-width: capping the bars leaves them bunched at the left with dead
+   space after, instead of spanning the row like a waveform should. */
+.vn-bars i{flex:1;min-width:2px;border-radius:2px;background:var(--txt-3);
+  transition:background .12s linear}
+/* Played-so-far, filled in behind the playhead rather than lighting the lot. */
+.vn-bars i.done{background:var(--lime)}
+.vn.on .vn-bars i{background:rgba(235,235,235,.34)}
+.vn.on .vn-bars i.done{background:var(--lime)}
+.vn-secs{flex:0 0 auto;font-size:.72rem;color:var(--txt-2)}
 .vn-dead{color:var(--txt-2);font-size:.84rem}
 @media (prefers-reduced-motion:reduce){.vn-dot{animation:none}}
+
+/* stickers and message actions */
+.stk{display:flex;flex-direction:column;align-items:flex-start;gap:4px;margin-top:2px}
+.stk span{font-size:.78rem;color:var(--txt-2);letter-spacing:-.01em}
+.stkgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.stkpick{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  min-height:92px;padding:12px 6px;border-radius:1.3rem;border:1px solid var(--line);
+  background:var(--glass);color:var(--txt);cursor:pointer}
+.stkpick:active{border-color:rgba(204,255,0,.45)}
+.stkpick span{font-size:.68rem;color:var(--txt-2);text-align:center;line-height:1.25}
+.edited{font-size:.62rem;color:var(--txt-3);margin-left:7px;letter-spacing:.02em}
+.bmenu{margin-left:auto;padding:0 6px;min-width:26px;height:22px;line-height:1;border:0;background:none;
+  color:var(--txt-3);font-size:1rem;cursor:pointer}
+.bmenu:active{color:var(--lime)}
+/* Stickers animate to say something a still drawing can't, but motion near the
+   road is a real accessibility problem, so honour the system setting. */
+@media (prefers-reduced-motion:reduce){.stk svg *,.stkpick svg *{animation:none!important}}
 
 /* onboarding */
 #gate{position:fixed;inset:0;z-index:200;background:var(--void);overflow-y:auto;display:none;
@@ -393,6 +440,58 @@ const TILES=[
  ['Been stuck 20 min',''],['Moving again','calm'],['Anyone know a way round?','']];
 /* Shown while moving: hazard reports only, one tap, no reading required. */
 const DRIVE_TILES=[4,5,6,7,10];
+
+/* ---- stickers ----
+   Drawn here rather than fetched. A GIF service would mean an API key, a
+   third-party request on every keystroke of a search, and a tracking beacon
+   inside an app whose whole pitch is that nobody is watching. It also could not
+   work: a GIF runs to megabytes and one MQTT frame is capped at 64 KB.
+
+   So these are inline SVG, animated with SMIL where movement says something the
+   still image doesn't. Only the index goes on the wire, so a sticker costs about
+   one byte and arrives instantly on a bad connection. They are drawn in the
+   app's own two accents so they read as part of it rather than pasted in.
+
+   `label` is not decoration: it is what Listen mode reads aloud and what a
+   screen reader announces, so it has to say what the picture means. */
+const STK_A='var(--lime)',STK_B='var(--emerald)',STK_C='var(--danger)';
+const STICKERS=[
+ {k:'cheers',label:'Cheers',c:STK_B,
+  svg:`<path d="M20 30h8v22h-8z"/><path d="M28 34l7-14a4 4 0 016 4l-2 8h11a4 4 0 013 6l-5 12a6 6 0 01-6 4H28z"/>`},
+ {k:'sorry',label:'My bad',c:STK_B,
+  svg:`<path d="M22 52V26a4 4 0 018 0v14M30 40V22a4 4 0 018 0v18M38 40V26a4 4 0 018 0v16"/><path d="M46 42v-8a4 4 0 018 0v14a12 12 0 01-12 12H32a10 10 0 01-10-10"/>`},
+ {k:'afteryou',label:'After you',c:STK_B,
+  svg:`<path d="M14 32h30"/><path d="M34 22l10 10-10 10"/><path d="M52 18v28"><animate attributeName="opacity" values="1;.3;1" dur="1.6s" repeatCount="indefinite"/></path>`},
+ {k:'snail',label:'We are crawling',c:STK_A,
+  svg:`<g><animateTransform attributeName="transform" type="translate" values="-6 0;6 0;-6 0" dur="4.5s" repeatCount="indefinite"/><circle cx="26" cy="34" r="12"/><path d="M26 34a5 5 0 016 2 5 5 0 01-4 5"/><path d="M14 46h30a8 8 0 008-8"/><path d="M52 38l1-9M53 29a2 2 0 100-.1"/><path d="M8 50h48" opacity=".3"/></g>`},
+ {k:'rage',label:'Raging',c:STK_C,
+  svg:`<circle cx="32" cy="38" r="16"/><path d="M24 32l6 3M40 32l-6 3"/><path d="M25 47c4-4 10-4 14 0"/><g><path d="M20 16c2 4-2 5 0 9M32 12c2 4-2 5 0 9M44 16c2 4-2 5 0 9"><animateTransform attributeName="transform" type="translate" values="0 2;0 -3;0 2" dur="1.4s" repeatCount="indefinite"/></path></g>`},
+ {k:'forever',label:'Been here forever',c:STK_A,
+  svg:`<circle cx="30" cy="42" r="13"/><path d="M25 40h10l-10 8h10"/><g><path d="M44 26h9l-9 9h9"><animateTransform attributeName="transform" type="translate" values="0 4;0 -4;0 4" dur="2.4s" repeatCount="indefinite"/><animate attributeName="opacity" values=".3;1;.3" dur="2.4s" repeatCount="indefinite"/></path></g>`},
+ {k:'green',label:'It is green',c:STK_B,
+  svg:`<rect x="17" y="6" width="30" height="48" rx="9"/><path d="M32 54v6M24 60h16"/><circle cx="32" cy="18" r="5.5" opacity=".22"/><circle cx="32" cy="30" r="5.5" opacity=".22"/><circle cx="32" cy="42" r="6.5" fill="currentColor" stroke="none"><animate attributeName="opacity" values="1;.3;1" dur="1s" repeatCount="indefinite"/></circle>`},
+ {k:'works',label:'Roadworks',c:STK_A,
+  svg:`<path d="M32 12L48 52H16z"/><path d="M24 34h16M21 42h22"/><path d="M10 54h44"/>`},
+ {k:'coffee',label:'I need a coffee',c:STK_A,
+  svg:`<path d="M14 28h30v14a10 10 0 01-10 10H24a10 10 0 01-10-10z"/><path d="M44 32h5a6 6 0 010 12h-5"/><path d="M22 18c2-4-2-6 0-9M32 18c2-4-2-6 0-9"><animate attributeName="opacity" values=".3;1;.3" dur="2s" repeatCount="indefinite"/></path>`},
+ {k:'late',label:'I am so late',c:STK_C,
+  svg:`<circle cx="32" cy="34" r="18"/><path d="M32 22v12l8 6"><animateTransform attributeName="transform" type="rotate" values="0 32 34;360 32 34" dur="3s" repeatCount="indefinite"/></path><path d="M18 12l-6 5M46 12l6 5"/>`},
+ {k:'what',label:'What is going on',c:STK_A,
+  svg:`<circle cx="32" cy="34" r="19"/><path d="M25 28a7 7 0 0114 0c0 5-7 5-7 10"/><circle cx="32" cy="45" r="1.6" fill="currentColor" stroke="none"/>`},
+ /* Beats by stroke weight rather than by scaling. SMIL animateTransform ignores
+    CSS transform-origin, so a scale would grow from the corner of the viewBox
+    and walk the heart off the tile. */
+ {k:'thanks',label:'Thank you',c:STK_C,
+  svg:`<path d="M32 52S12 40 12 27a11 11 0 0120-6 11 11 0 0120 6c0 13-20 25-20 25z"><animate attributeName="stroke-width" values="3.4;5.6;3.4" dur="1.4s" repeatCount="indefinite"/></path>`},
+];
+/* One shared wrapper: 64x64, stroke-based, no fill, so every sticker sits on the
+   same optical weight and inherits its accent from the entry. */
+const stickerSVG=(i,px)=>{
+  const s=STICKERS[i];
+  if(!s)return '';
+  return `<svg viewBox="0 0 64 64" width="${px}" height="${px}" role="img" aria-label="${esc(s.label)}" style="color:${s.c}">
+    <g fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">${s.svg}</g></svg>`;
+};
 
 /* ---- the standing room ----
    Proximity chat has a cold-start problem it can't solve by itself: the first
@@ -489,6 +588,33 @@ function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const rid=n=>{let s='',a='abcdefghijkmnpqrstuvwxyz23456789';for(let i=0;i<n;i++)s+=a[Math.random()*a.length|0];return s;};
+
+/* ---- proving a message is yours ----
+   There is no account and no signature anywhere in this app, so an id on the
+   wire is just a string a peer typed. If "delete" only said whose message to
+   remove, anyone could quietly wipe everyone else's messages off every screen
+   in range.
+
+   So each message carries a commitment: 64 bits of SHA-256 over a random nonce
+   only the sender has. Deleting or editing means revealing the nonce, and every
+   receiver checks it hashes to the commitment they already stored. Nothing to
+   distribute, no keys, no identity, and unforgeable without inverting the hash.
+   An edit carries a fresh commitment so the next one is still protected. */
+const SUB=(typeof crypto!=='undefined'&&crypto.subtle)?crypto.subtle:null;
+const hex=u8=>[...u8].map(x=>x.toString(16).padStart(2,'0')).join('');
+const rhex=n=>{const u=new Uint8Array(n);crypto.getRandomValues(u);return hex(u);};
+async function commitOf(nonce){
+  if(!SUB)return '';
+  try{return hex(new Uint8Array(await SUB.digest('SHA-256',te.encode(nonce))).slice(0,8));}
+  catch(e){return '';}
+}
+/* A nonce is only good for one reveal, so every send mints a fresh pair. */
+async function newProof(){
+  if(!SUB)return null;
+  const n=rhex(16),cm=await commitOf(n);
+  return cm?{n,cm}:null;
+}
+const proofOk=async(nonce,cm)=>!!cm&&typeof nonce==='string'&&/^[0-9a-f]{32}$/.test(nonce)&&await commitOf(nonce)===cm;
 /* Rotates every session AND every time you cross into a new cell, so no single
    broker subscriber can stitch your heartbeats into a whole-drive trace. The car
    is your face; this handle is never a grudge target across drives. MYIDS keeps
@@ -571,7 +697,7 @@ function medSpeed(){
   return a[a.length>>1];
 }
 function evalMotion(){
-  const was=moving;
+  const was=moving,wasReason=moveReason;
   const sp=medSpeed(),now=Date.now();
   const stale=!pos||now-pos.t>STALE_MS;
   const bad=pos&&pos.acc>60;
@@ -588,11 +714,24 @@ function evalMotion(){
     if(now-stillSince>=STOP_HOLD)moving=false;
   }
   else stillSince=0;
+  /* Green light mid-recording. Bin it rather than send it: half a sentence cut
+     off by the lights is noise, and the mic must not stay live while the car is
+     rolling.
+
+     Only when the GPS actually says you're rolling, though. The gate also
+     reports "moving" when it simply can't tell, and losing a fix under a bridge
+     or in a multi-storey is common enough that binning a twenty-second message
+     over it would be its own kind of broken. Someone recording has the phone in
+     their hand and can stop; someone who has genuinely pulled away has not.
+
+     This sits OUTSIDE the was!==moving block on purpose. A stale fix has
+     already set moving=true, so by the time the car really pulls away `moving`
+     doesn't change and a transition test would never fire. The transition that
+     matters is into 'speed', not into 'moving'. */
+  if(vnRec&&moving&&moveReason==='speed'&&wasReason!=='speed'){
+    vnCancel();toast('Moving, so the recording stopped');
+  }
   if(was!==moving){
-    /* Green light mid-recording. Bin it rather than send it: half a sentence
-       cut off by the lights is noise, and the mic must not stay live while the
-       car is rolling. */
-    if(moving&&vnRec){vnCancel();toast('Moving, so the recording stopped');}
     if(moving)vnStopPlay();
     if(moving&&draft.trim()){heldDraft=draft;draft='';}
     if(!moving)haptic([12,60,12]);   /* felt 'you can type again' on Android; no-op on iOS */
@@ -836,6 +975,34 @@ function onWire(raw){
   }
   if(m.id.length>MAX_ID)return;                 /* bound Map-key and 'seen' growth */
   if(m.k==='bye'){if(peers.delete(m.id))schedulePaint();return;}
+  /* Retractions sit ABOVE the position gate. They carry no coordinates, because
+     there is nothing about where you are in "unsay that", and the gate below
+     drops anything unlocated. The message being retracted already passed that
+     gate when it arrived, so nothing is being let through the back door: the
+     packet still has to reveal a nonce hashing to the commitment stored with
+     the original, which only its sender has. */
+  if(m.k==='del'||m.k==='edit'){
+    const target=msgs.find(x=>!x.mine&&x.id===m.id&&x.ref===(m.ref|0));
+    if(!target||!target.cm)return;
+    proofOk(m.n,target.cm).then(good=>{
+      if(!good)return;
+      const at=msgs.indexOf(target);
+      if(at<0)return;   /* aged out while we were hashing */
+      if(m.k==='del'){
+        msgs.splice(at,1);
+        dropMsg(target);
+      }else{
+        const next=cap(String(m.t==null?'':m.t),240);
+        if(!next.trim())return;
+        target.txt=next;target.edited=true;
+        /* The nonce is spent, so the next edit needs a fresh commitment or the
+           message quietly becomes immutable even for its author. */
+        target.cm=typeof m.cm==='string'&&/^[0-9a-f]{16}$/.test(m.cm)?m.cm:'';
+      }
+      if(tab==='road')scheduleStream();
+    });
+    return;
+  }
   const known=peers.get(m.id);
   /* Reject brand-new ids once the room is full, a flood can't grow the Map or
      the render cost without bound. Known peers still update. */
@@ -864,29 +1031,59 @@ function onWire(raw){
   if(m.k==='msg'){
     if(MUTED.has(m.id))return;
     const txt=cap(String(m.t==null?'':m.t),240);
-    if(!txt.trim())return;
-    const key=m.id+'|'+(m.ts|0)+'|'+txt;
+    const st=(typeof m.st==='number'&&isFinite(m.st)&&STICKERS[m.st|0]&&(m.st|0)>=0)?m.st|0:null;
+    if(!txt.trim()&&st===null)return;
+    const key=m.id+'|'+(m.ts|0)+'|'+txt+'|'+st;
     if(seen.has(key))return; /* brokers can redeliver; never show a line twice */
     seen.add(key);if(seen.size>400)seen=new Set([...seen].slice(-200));
-    addMsg({id:m.id,c,b,txt,ts:now,mine:false});
+    /* ref is the SENDER's timestamp. The one on the message is our own clock,
+       so a delete arriving later has to key off theirs or it matches nothing. */
+    addMsg({id:m.id,c,b,txt,st,ts:now,ref:m.ts|0,mine:false,
+      cm:typeof m.cm==='string'&&/^[0-9a-f]{16}$/.test(m.cm)?m.cm:''});
   }
   if(m.k==='vn'){
     if(MUTED.has(m.id))return;
     const a=String(m.a==null?'':m.a);
-    /* Everything here is attacker-controlled. Reject on shape before decoding:
-       a strict base64 charset, a hard size cap so one packet can't eat memory,
-       and a codec INDEX rather than a mime string, so the type on the Blob is
-       always one we chose. */
-    if(!a||a.length>VN_MAX_B64||!/^[A-Za-z0-9+/]+={0,2}$/.test(a))return;
+    /* Everything here is attacker-controlled and ends up in a Blob the browser
+       will decode. Reject on shape first: a strict base64 charset, a per-chunk
+       size cap, and a codec INDEX rather than a mime string, so the type on the
+       Blob is always one we chose. */
+    if(!a||a.length>VN_CHUNK||!/^[A-Za-z0-9+/]+={0,2}$/.test(a))return;
     const ci=m.ci|0;
     if(ci<0||ci>=VN_MIME.length)return;
+    const n=m.n==null?1:(m.n|0);
+    const i=m.i==null?0:(m.i|0);
+    if(n<1||n>VN_MAX_PARTS||i<0||i>=n)return;
     const ms=clamp(m.ms|0,0,VN_MAX_MS);
     const key=m.id+'|'+(m.ts|0)+'|vn';
-    if(seen.has(key))return;
+    if(seen.has(key))return;                 /* already assembled and shown */
+
+    /* One chunk: nothing to wait for. */
+    let full=null;
+    if(n===1)full=a;
+    else{
+      let pend=vnPend.get(key);
+      if(!pend){
+        /* Bounded, and oldest-first, so a peer spraying part 3 of a thousand
+           different notes cannot make us hold them all. */
+        if(vnPend.size>=VN_MAX_PENDING){const k0=vnPend.keys().next().value;vnPend.delete(k0);}
+        pend={parts:new Array(n).fill(null),n,got:0,at:now};
+        vnPend.set(key,pend);
+      }
+      if(pend.n!==n)return;                  /* a peer changing its mind mid-note */
+      if(pend.parts[i]!=null)return;         /* redelivery of a chunk we hold */
+      pend.parts[i]=a;pend.got++;pend.at=now;
+      if(pend.got<n)return;                  /* still waiting on the rest */
+      vnPend.delete(key);
+      full=pend.parts.join('');
+    }
     seen.add(key);if(seen.size>400)seen=new Set([...seen].slice(-200));
-    const url=vnURL(a,ci);
-    if(!url)return;
-    addMsg({id:m.id,c,b,txt:'',voice:{url,ci,ms},ts:now,mine:false});
+    const blob=vnBlob(full,ci);
+    if(!blob)return;
+    const url=URL.createObjectURL(blob);
+    const rec={id:m.id,c,b,txt:'',voice:{url,ci,ms,wave:null},ts:now,ref:m.ts|0,mine:false};
+    addMsg(rec);
+    vnAttachPeaks(rec,blob);
   }
 }
 /* Hard arrival-rate cap while moving: a burst updates the card at most once per
@@ -916,7 +1113,7 @@ function addMsg(m){
   else if(!moving&&!quiet){unread++;nav();}
   if(!m.mine&&!quiet){
     const sr=document.getElementById('sr');
-    const said=m.voice?'sent a voice note':m.txt;
+    const said=m.voice?'sent a voice note':(m.st!=null&&STICKERS[m.st])?STICKERS[m.st].label:m.txt;
     if(sr)sr.textContent=carName(m)+': '+said;   /* announced once, no history re-read */
     /* Listen mode is the eyes-off channel and replaces the blip; clip so a long
        message doesn't hold the road's attention. */
@@ -927,7 +1124,7 @@ function addMsg(m){
       if(S.listen&&armedThisSession&&vnPlayable(m.voice.ci)&&!vnPlaying)vnPlay(m.vid);
       else if(!moving&&S.sound)blip();
     }
-    else if(S.listen)speak(carName(m)+'. '+clip(m.txt,90));
+    else if(S.listen)speak(carName(m)+'. '+clip(said,90));
     else if(!moving&&S.sound)blip();
   }
 }
@@ -995,6 +1192,13 @@ const ICONS={
  me:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.8"/><path d="M4.5 20.5c1.2-4 4-6 7.5-6s6.3 2 7.5 6"/></svg>'};
 const SEND='<svg viewBox="0 0 24 24"><path d="M3.4 20.4l18.2-8.4L3.4 3.6l0 6.5 12 1.9-12 1.9z"/></svg>';
 const MIC='<svg viewBox="0 0 24 24"><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-5a3.5 3.5 0 0 0-7 0v5A3.5 3.5 0 0 0 12 15z"/><path d="M18 11.5a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.94V22h2v-2.56a8 8 0 0 0 7-7.94z"/></svg>';
+const STKICO='<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 1-10 10A10 10 0 0 1 12 2zm0 2a8 8 0 1 0 8 8h-4a4 4 0 0 1-4 4 4 4 0 0 1-4-4 4 4 0 0 1 4-4V4z"/></svg>';
+window.stickerSheet=()=>{
+  openSheet(`<h3>Stickers</h3>
+   <p style="font-size:.85rem;color:var(--txt-2);margin-bottom:16px">Drawn into the app, so they cost nothing to send and work on a bad signal.</p>
+   <div class="stkgrid">${STICKERS.map((s,i)=>
+     `<button class="stkpick" onclick="sendSticker(${i})" aria-label="${esc(s.label)}">${stickerSVG(i,44)}<span>${esc(s.label)}</span></button>`).join('')}</div>`);
+};
 
 function nav(){
   document.getElementById('nav').innerHTML=[['road','Road'],['cars','Cars'],['me','You']]
@@ -1103,9 +1307,21 @@ function stopSpeech(){try{speechSynthesis.cancel();}catch(e){}ttsPending=0;}
    range can also see which car it came from. That is a thing to be told plainly
    rather than a thing to be engineered around. */
 
-const VN_MAX_MS=6000;        /* a hazard call-out, not a phone call */
-const VN_MAX_B64=32000;      /* ~24 KB of audio; MAX_FRAME is 64 KB and has to hold the JSON too */
-const VN_BITS=24000;
+const VN_MAX_MS=60000;
+/* A minute doesn't fit in one MQTT frame, so it goes in pieces. That is a
+   better trade than one enormous packet anyway: every public broker enforces
+   its own maximum packet size and they don't agree with each other, so a
+   12 KB chunk gets through everywhere while a 120 KB one is a gamble.
+
+   At 12 kbit/s a minute is about 90 KB of audio, 120 KB once base64 has added
+   its third, which is ten chunks. Opus holds up fine for speech down there, and
+   speech into a phone on a dashboard is all anyone is recording. */
+const VN_BITS=12000;
+const VN_CHUNK=12000;        /* base64 chars per frame; ~12 KB, safe on every broker */
+const VN_MAX_PARTS=16;       /* hard ceiling on one note, and on what a peer can make us buffer */
+const VN_ASSEMBLE_MS=25000;  /* QoS 0 loses packets; give up on a half-arrived note */
+const VN_MAX_PENDING=6;      /* concurrent half-arrived notes, so a flood can't grow the heap */
+const VN_BARS=28;            /* waveform resolution; also the bar count in the bubble */
 /* Never taken from the wire. A peer sends an index; we choose the string. */
 const VN_MIME=['audio/webm;codecs=opus','audio/mp4'];
 const vnPickMime=()=>{
@@ -1119,14 +1335,98 @@ const VN_OK=typeof MediaRecorder!=='undefined'&&!!(navigator.mediaDevices&&navig
 const vnPlayable=ci=>{try{return !!new Audio().canPlayType(VN_MIME[ci]||'');}catch(e){return false;}};
 
 let vnRec=null,vnStream=null,vnStopT=null,vnStartedAt=0,vnBusy=false;
-let vnPlaying=null,vnPlayingId='';
+let vnPlaying=null,vnPlayingId='',vnPlayT=null,vnLocked=false,vnRate=1;
+let vnAC=null,vnAn=null,vnMeterT=null;
+/* Half-arrived notes, keyed by sender and their timestamp. QoS 0 means a chunk
+   can simply never turn up, so these are swept rather than kept forever. */
+const vnPend=new Map();
+setInterval(()=>{
+  const now=Date.now();
+  vnPend.forEach((p,k)=>{if(now-p.at>VN_ASSEMBLE_MS)vnPend.delete(k);});
+},5000);
 
 /* Stopping the tracks is what turns the browser's recording indicator off, so
    it happens on every exit path, including the ones that throw. */
 function vnCleanup(){
+  vnLocked=false;vnHold=null;
+  if(typeof vnHoldOff==='function')vnHoldOff();
   if(vnStopT){clearTimeout(vnStopT);vnStopT=null;}
+  if(vnMeterT){cancelAnimationFrame(vnMeterT);vnMeterT=null;}
   try{if(vnStream)vnStream.getTracks().forEach(t=>t.stop());}catch(e){}
-  vnRec=null;vnStream=null;
+  try{if(vnAC)vnAC.close();}catch(e){}
+  vnRec=null;vnStream=null;vnAC=null;vnAn=null;
+}
+
+/* ---- the live meter ----
+   An analyser tapped off the same MediaStream the recorder is reading. It is a
+   side branch, not a link in the chain: MediaRecorder is attached to the stream
+   itself, so nothing here can alter a single sample of what gets encoded.
+
+   Bars are written straight to the DOM rather than through render(), because
+   this runs every frame and a re-render would blow away the composer sixty
+   times a second. */
+function vnMeterStart(){
+  try{
+    vnAC=new (window.AudioContext||window.webkitAudioContext)();
+    vnAn=vnAC.createAnalyser();
+    vnAn.fftSize=1024;vnAn.smoothingTimeConstant=.75;
+    vnAC.createMediaStreamSource(vnStream).connect(vnAn);
+  }catch(e){vnAn=null;return;}
+  const buf=new Uint8Array(vnAn.fftSize);
+  const hist=new Array(VN_BARS).fill(4);
+  let last=0;
+  const tick=()=>{
+    if(!vnAn||!vnRec){vnMeterT=null;return;}
+    vnMeterT=requestAnimationFrame(tick);
+    const now=Date.now();
+    if(now-last<55)return;         /* ~18fps is plenty for a level meter */
+    last=now;
+    vnAn.getByteTimeDomainData(buf);
+    /* RMS about the 128 midpoint, which is silence for 8-bit time-domain data. */
+    let sum=0;
+    for(let i=0;i<buf.length;i++){const v=(buf[i]-128)/128;sum+=v*v;}
+    const rms=Math.sqrt(sum/buf.length);
+    hist.push(Math.max(4,Math.min(100,Math.round(rms*260))));
+    hist.shift();
+    const bars=document.querySelectorAll('.vn-live i');
+    for(let i=0;i<bars.length;i++)bars[i].style.height=Math.max(3,hist[i]*.26)+'px';
+    const el=document.getElementById('vn-count');
+    if(el){
+      const t=Math.floor((now-vnStartedAt)/1000);
+      el.textContent=Math.floor(t/60)+':'+String(t%60).padStart(2,'0');
+    }
+  };
+  vnMeterT=requestAnimationFrame(tick);
+}
+
+/* ---- waveforms ----
+   Computed from the audio itself rather than faked, and computed locally on both
+   ends so nothing extra rides the wire. Decoding is what fails on a codec the
+   browser can't handle, which is the same case the bubble already explains. */
+async function vnPeaks(blob){
+  try{
+    const ac=new (window.AudioContext||window.webkitAudioContext)();
+    const buf=await ac.decodeAudioData(await blob.arrayBuffer());
+    const ch=buf.getChannelData(0);
+    const step=Math.max(1,Math.floor(ch.length/VN_BARS));
+    const out=[];let max=0;
+    for(let i=0;i<VN_BARS;i++){
+      let p=0;const s=i*step,e=Math.min(ch.length,s+step);
+      for(let j=s;j<e;j++){const v=Math.abs(ch[j]);if(v>p)p=v;}
+      out.push(p);if(p>max)max=p;
+    }
+    try{ac.close();}catch(e){}
+    if(!max)return null;
+    return out.map(v=>Math.max(8,Math.round(v/max*100)));
+  }catch(e){return null;}
+}
+/* Fill it in behind the bubble; a flat placeholder is shown until it lands. */
+function vnAttachPeaks(m,blob){
+  vnPeaks(blob).then(p=>{
+    if(!p||!m.voice)return;
+    m.voice.wave=p;
+    if(tab==='road'&&!moving)paintStream();
+  });
 }
 
 async function vnStart(){
@@ -1155,8 +1455,12 @@ async function vnStart(){
     vnRec.start();
     vnBusy=false;
     haptic(12);
-    vnStopT=setTimeout(()=>{if(vnRec&&vnRec.state==='recording')vnRec.stop();},VN_MAX_MS);
+    /* Hitting the cap stops the recorder, and onstop is the same path the Send
+       button takes, so a note that runs to the limit sends itself rather than
+       being thrown away for the crime of being long enough. */
+    vnStopT=setTimeout(()=>{if(vnRec&&vnRec.state==='recording'){haptic([10,40,10]);vnRec.stop();}},VN_MAX_MS);
     renderDock();
+    vnMeterStart();
   }catch(e){
     vnCleanup();vnBusy=false;renderDock();
     toast(e&&e.name==='NotAllowedError'?'Microphone is blocked':'Couldn’t start recording');
@@ -1180,17 +1484,26 @@ const unb64=s=>{const bin=atob(s),u=new Uint8Array(bin.length);for(let i=0;i<bin
 
 async function vnSend(blob,ci,ms){
   renderDock();
-  if(ms<400){toast('Too short');return;}
+  if(ms<600){toast('Too short');return;}
   try{
     const a=b64(await blob.arrayBuffer());
-    if(a.length>VN_MAX_B64){toast('That was too long to send');return;}
+    const parts=Math.max(1,Math.ceil(a.length/VN_CHUNK));
+    if(parts>VN_MAX_PARTS){toast('That one was too big to send');return;}
     const ts=Date.now();
-    if(!pub({v:1,k:'vn',id:MYID,c:S.car.color,b:S.car.body,la:wireLat(),lo:wireLng(),a,ci,ms:Math.round(ms),ts})){
-      toast('Voice note didn’t go out');return;
+    /* Every chunk repeats the header. It costs a hundred bytes each and means a
+       receiver can start assembling from whichever piece arrives first, instead
+       of being stuck if part zero is the one that goes missing. */
+    const head={v:1,k:'vn',id:MYID,c:S.car.color,b:S.car.body,la:wireLat(),lo:wireLng(),ci,ms:Math.round(ms),ts,n:parts};
+    for(let i=0;i<parts;i++){
+      if(!pub(Object.assign({},head,{i,a:a.slice(i*VN_CHUNK,(i+1)*VN_CHUNK)}))){
+        toast('Voice note didn’t go out');return;
+      }
     }
     sendLog.push(ts);
     haptic(15);
-    addMsg({id:MYID,c:S.car.color,b:S.car.body,txt:'',voice:{url:vnURL(a,ci),ci,ms:Math.round(ms)},ts,mine:true,delivered:false});
+    const mine={id:MYID,c:S.car.color,b:S.car.body,txt:'',voice:{url:vnURL(a,ci),ci,ms:Math.round(ms),wave:null},ts,ref:ts,mine:true,delivered:false};
+    addMsg(mine);
+    vnAttachPeaks(mine,blob);
   }catch(e){toast('Couldn’t send that');}
 }
 
@@ -1199,29 +1512,140 @@ async function vnSend(blob,ci,ms){
 function vnURL(a,ci){
   try{return URL.createObjectURL(new Blob([unb64(a)],{type:VN_MIME[ci]}));}catch(e){return '';}
 }
+function vnBlob(a,ci){
+  try{return new Blob([unb64(a)],{type:VN_MIME[ci]});}catch(e){return null;}
+}
 
 function vnPlay(id){
   const m=msgs.find(x=>x.voice&&x.vid===id);
   if(!m||!m.voice.url)return;
-  if(vnPlaying){try{vnPlaying.pause();}catch(e){}vnPlaying=null;
+  if(vnPlaying){try{vnPlaying.pause();}catch(e){}vnPlaying=null;vnProgStop();
     if(vnPlayingId===id){vnPlayingId='';paintStream();return;}}   /* tapping the playing one stops it */
   const a=new Audio(m.voice.url);
+  try{a.playbackRate=vnRate;}catch(e){}
   vnPlaying=a;vnPlayingId=id;
-  a.onended=a.onerror=()=>{if(vnPlayingId===id){vnPlaying=null;vnPlayingId='';paintStream();}};
-  a.play().catch(()=>{vnPlaying=null;vnPlayingId='';paintStream();toast('Tap again to play');});
+  a.onended=a.onerror=()=>{if(vnPlayingId===id){vnPlaying=null;vnPlayingId='';vnProgStop();paintStream();}};
+  a.play().catch(()=>{vnPlaying=null;vnPlayingId='';vnProgStop();paintStream();toast('Tap again to play');});
   paintStream();
+  vnProgStart(id);
 }
-function vnStopPlay(){if(vnPlaying){try{vnPlaying.pause();}catch(e){}}vnPlaying=null;vnPlayingId='';}
+/* Colours the bars up to the playhead. Written straight to the DOM on a timer
+   rather than through paintStream(), because rebuilding the whole stream four
+   times a second would fight anyone trying to scroll or select text in it. */
+function vnProgStart(id){
+  vnProgStop();
+  vnPlayT=setInterval(()=>{
+    if(!vnPlaying||vnPlayingId!==id){vnProgStop();return;}
+    const d=vnPlaying.duration;
+    const p=(isFinite(d)&&d>0)?Math.min(1,vnPlaying.currentTime/d):0;
+    const wrap=document.querySelector(`[data-scrub="${id}"]`);
+    if(wrap){
+      const bars=wrap.querySelectorAll('i');
+      const upto=Math.round(p*bars.length);
+      for(let i=0;i<bars.length;i++)bars[i].classList.toggle('done',i<upto);
+      wrap.setAttribute('aria-valuenow',String(Math.round(vnPlaying.currentTime)));
+    }
+    /* Counts up while playing and falls back to the total when it stops, which
+       is what every voice-note UI people already use does. */
+    const t=document.querySelector(`[data-t="${id}"]`);
+    if(t)t.textContent=mmss(vnPlaying.currentTime*1000);
+  },120);
+}
+/* Tap or drag anywhere on the waveform to move the playhead. If it isn't
+   playing, seeking starts it from there rather than doing nothing visible. */
+window.vnSeek=(id,clientX,el)=>{
+  const r=el.getBoundingClientRect();
+  if(!r.width)return;
+  const p=Math.min(1,Math.max(0,(clientX-r.left)/r.width));
+  if(vnPlayingId!==id||!vnPlaying){vnPlay(id);}
+  if(!vnPlaying)return;
+  const go=()=>{const d=vnPlaying.duration;if(isFinite(d)&&d>0)vnPlaying.currentTime=p*d;};
+  if(vnPlaying.readyState>0)go(); else vnPlaying.addEventListener('loadedmetadata',go,{once:true});
+};
+/* One rate for everything, because a per-note speed nobody can see is a setting
+   people lose. Cycles the three anyone actually uses. */
+window.vnCycleRate=()=>{
+  vnRate=vnRate===1?1.5:vnRate===1.5?2:1;
+  if(vnPlaying)try{vnPlaying.playbackRate=vnRate;}catch(e){}
+  paintStream();
+};
+function vnProgStop(){if(vnPlayT){clearInterval(vnPlayT);vnPlayT=null;}}
+function vnStopPlay(){if(vnPlaying){try{vnPlaying.pause();}catch(e){}}vnPlaying=null;vnPlayingId='';vnProgStop();}
 
 window.vnStop=vnStop;window.vnCancel=vnCancel;
+
+/* ---- hold to talk ----
+   The WhatsApp gesture, because it is the one people already have in their
+   hands: hold the mic, slide left to bin it, slide up to lock so you can let
+   go. Release without sliding sends.
+
+   Pointer events, not touch events, so a mouse behaves identically and the
+   thing is testable. setPointerCapture is what keeps the drag alive once the
+   finger leaves the button, which it always does. */
+const VN_CANCEL_X=-70,VN_LOCK_Y=-60;
+let vnHold=null;   /* {x0,y0,slide} while a finger is down */
+/* The drag is tracked on the document, NOT on the button.
+   vnStart() re-renders the composer, which destroys the element that received
+   pointerdown and takes its pointer capture and any element-level listener with
+   it, so a gesture bound to the button stops receiving events the moment
+   recording begins. Which is to say: exactly when it matters. */
+function vnHoldOn(){
+  addEventListener('pointermove',vnMove);
+  addEventListener('pointerup',vnUp);
+  addEventListener('pointercancel',vnUp);
+}
+function vnHoldOff(){
+  removeEventListener('pointermove',vnMove);
+  removeEventListener('pointerup',vnUp);
+  removeEventListener('pointercancel',vnUp);
+}
+window.vnDown=async e=>{
+  if(vnLocked||vnRec||vnBusy)return;
+  vnHold={x0:e.clientX,y0:e.clientY,slide:0};
+  vnHoldOn();
+  await vnStart();
+  /* Let go before the microphone opened: that is a tap, not a recording. */
+  if(!vnHold&&vnRec)vnCancel();
+};
+function vnMove(e){
+  if(!vnHold||!vnRec)return;
+  const dx=e.clientX-vnHold.x0,dy=e.clientY-vnHold.y0;
+  if(dy<VN_LOCK_Y&&dx>VN_CANCEL_X){
+    vnLocked=true;vnHold=null;vnHoldOff();haptic(18);renderDock();return;
+  }
+  const slide=Math.min(1,Math.max(0,dx/VN_CANCEL_X));
+  if(slide!==vnHold.slide){
+    vnHold.slide=slide;
+    const el=document.getElementById('vn-slide');
+    if(el){el.style.opacity=String(0.45+slide*0.55);el.textContent=slide>=1?'Release to bin it':'Slide left to cancel';}
+    const rec=document.querySelector('.vn-rec');
+    if(rec)rec.classList.toggle('binning',slide>=1);
+  }
+};
+function vnUp(){
+  if(!vnHold)return;
+  const slide=vnHold.slide;
+  vnHold=null;
+  vnHoldOff();
+  if(!vnRec)return;
+  if(slide>=1){haptic(25);vnCancel();return;}
+  vnStop();
+}
 /* Said once, before the first recording, because the trade here isn't obvious
    and finding out afterwards is too late. */
-window.vnMaybeStart=()=>{
-  if(S.vnTold){vnStart();return;}
+/* Keyboard and screen-reader path. Holding a key down is not a gesture anyone
+   can rely on, so the keyboard goes straight to the locked mode and toggles. */
+window.vnKey=()=>{
+  if(vnRec){vnStop();return;}
+  vnLocked=true;
+  vnMaybeStart();
+};
+window.vnMaybeStart=e=>{
+  if(S.vnTold){if(e&&e.pointerId!=null)vnDown(e);else vnStart();return;}
   openSheet(`<h3>About voice notes</h3>
    <p style="font-size:.88rem;color:var(--txt-2);line-height:1.6;margin-bottom:14px">This one isn’t anonymous the way the rest of Lane is. It’s <b style="color:var(--txt)">your actual voice</b>, going to everyone in range over the same public relay, and the people hearing it can see which car it came from.</p>
-   <p style="font-size:.88rem;color:var(--txt-2);line-height:1.6;margin-bottom:18px">Say what you’d shout out of the window. ${VN_MAX_MS/1000} seconds, then it stops on its own, and only while you’re stopped.</p>
-   <button class="btn" onclick="closeSheet();S.vnTold=1;save();vnStart()">Record one</button>`);
+   <p style="font-size:.88rem;color:var(--txt-2);line-height:1.6;margin-bottom:18px">Hold the mic to talk, slide left to bin it, slide up to lock so you can let go. Up to ${VN_MAX_MS/1000} seconds, then it sends itself. Only while you’re stopped.</p>
+   <button class="btn" onclick="closeSheet();S.vnTold=1;save();vnKey()">Record one</button>`);
 };
 
 /* ============ SHARED BITS ============ */
@@ -1328,6 +1752,15 @@ function rRoad(){
 /* True before the very first fix arrives and no error yet, distinct from moving,
    so a new user on the sofa isn't told "You're moving". */
 const locating=()=>!pos&&!gpsErr&&!S.lane.trim();
+/* A sticker carries its label as text underneath, not as a tooltip. Someone
+   glancing at a phone on a dashboard should not have to decode a drawing, and it
+   is what a screen reader and Listen mode read out. */
+function stickerBubble(m){
+  const s=STICKERS[m.st];
+  if(!s)return `<div class="txt">${esc(m.txt)}</div>`;
+  return `<div class="stk">${stickerSVG(m.st,64)}<span>${esc(s.label)}</span></div>`;
+}
+const mmss=ms=>{const t=Math.max(0,Math.round(ms/1000));return Math.floor(t/60)+':'+String(t%60).padStart(2,'0');};
 /* A voice note bubble. Where the recording codec can't be played here, say that
    instead of offering a play button that silently does nothing. */
 function voiceHTML(m){
@@ -1335,10 +1768,24 @@ function voiceHTML(m){
   if(!vnPlayable(m.voice.ci))
     return `<div class="txt vn-dead">Voice note, ${secs}s. This phone can’t play the format it was recorded in.</div>`;
   const on=vnPlayingId===m.vid;
-  return `<button class="vn ${on?'on':''}" data-vn="${esc(m.vid)}" aria-label="${on?'Stop':'Play'} voice note, ${secs} seconds">
-    <span class="vn-ico">${on?'&#9632;':'&#9654;'}</span>
-    <span class="vn-bars">${[7,13,9,16,11,18,8,14,10,6].map(h=>`<i style="height:${h}px"></i>`).join('')}</span>
-    <span class="vn-secs mono">${secs}s</span></button>`;
+  /* Real peaks once they're decoded; a flat placeholder until then, so the
+     bubble never jumps size when the waveform lands. */
+  const w=m.voice.wave||new Array(VN_BARS).fill(26);
+  /* Time under the waveform rather than beside it. Twenty-eight bars plus a play
+     button, a clock and a speed pill do not fit one row on a phone, and the
+     waveform is the thing worth the width. */
+  return `<div class="vn ${on?'on':''}">
+    <button class="vn-play" data-vn="${esc(m.vid)}" aria-label="${on?'Pause':'Play'} voice note, ${mmss(m.voice.ms)}">${on?'&#9613;&#9613;':'&#9654;'}</button>
+    <span class="vn-main">
+      <span class="vn-bars" data-scrub="${esc(m.vid)}" role="slider" aria-label="Seek"
+        aria-valuemin="0" aria-valuemax="${Math.round(m.voice.ms/1000)}" aria-valuenow="0"
+        >${w.map(h=>`<i style="height:${Math.max(3,Math.round(h*.24))}px"></i>`).join('')}</span>
+      <span class="vn-foot">
+        <span class="vn-secs mono" data-t="${esc(m.vid)}">${mmss(m.voice.ms)}</span>
+        <button class="vn-rate ${vnRate!==1?'on':''}" data-rate="1" aria-label="Playback speed">${vnRate}&#215;</button>
+      </span>
+    </span>
+  </div>`;
 }
 /* Coarse relative time, a 6-minute-old "Accident ahead" must not read as live. */
 function ago(ts){const s=Math.max(0,(Date.now()-ts)/1000);return s<45?'now':s<90?'1m':s<3600?Math.round(s/60)+'m':Math.round(s/3600)+'h';}
@@ -1370,6 +1817,7 @@ function paintDrive(el){
      itself; otherwise it just waits until you stop. */
   const body=last&&last.voice
     ?(S.listen?'Playing a voice note.':'Voice note. It’ll wait until you stop.')
+    :last&&last.st!=null&&STICKERS[last.st]?STICKERS[last.st].label
     :last?clip(last.txt,60):'';
   el.innerHTML=last
     ?`<div class="drive"><div class="who">${esc(last.mine?'You said':label(last.id,last.c,last.b,dupCombos()))}</div><div class="txt">${esc(body)}</div></div>`
@@ -1400,8 +1848,10 @@ function paintStream(){
     ?`<div class="msg sys"><div class="bub">${esc(m.txt)}</div></div>`
     :`<div class="msg ${m.mine?'mine':''}">${swatch(m.c)}
        <div class="bub"><div class="who">${esc(m.mine?'You':label(m.id,m.c,m.b,dup))}<span class="when" data-ts="${m.ts}">${ago(m.ts)}</span>${
-         m.mine?`<span class="tick ${m.delivered?'ok':''}" aria-label="${m.delivered?'delivered':'sending'}">${m.delivered?'✓':'·'}</span>`:''}</div>
-       ${m.voice?voiceHTML(m):`<div class="txt">${esc(m.txt)}</div>`}</div></div>`).join('');
+         m.edited?'<span class="edited">edited</span>':''}${
+         m.mine?`<span class="tick ${m.delivered?'ok':''}" aria-label="${m.delivered?'delivered':'sending'}">${m.delivered?'✓':'·'}</span>`:''}${
+         mineEditable(m)?`<button class="bmenu" data-menu="${esc(String(m.ref))}" aria-label="Edit or delete this message">&#8943;</button>`:''}</div>
+       ${m.voice?voiceHTML(m):m.st!=null&&m.st>=0?stickerBubble(m):`<div class="txt">${esc(m.txt)}</div>`}</div></div>`).join('');
   const s=document.getElementById('stream');
   if(s&&nearBottom)s.scrollIntoView({block:'end'});
 }
@@ -1455,14 +1905,24 @@ function stopDock(){
   ${quiet?`<button class="quiet-btn on" style="margin-bottom:10px" onclick="toggleQuiet()">${hushUntil?'Hushed · tap to come back':'Quiet on · tap to come back'}</button>`
     :`<div class="tiles" style="padding-bottom:0;margin-bottom:8px"><button class="tile" onclick="hush()">Hush 15 min</button><button class="tile" onclick="toggleQuiet()">Quiet</button></div>`}
   ${heldDraft?`<button class="btn ghost sm" style="margin-bottom:10px" onclick="restore()">Finish your message?</button>`:''}
-  ${vnRec?`<div class="vn-rec"><span class="vn-dot"></span><b>Recording…</b>
-    <span class="mono">stops itself at ${VN_MAX_MS/1000}s</span>
-    <button class="chip" onclick="vnStop()">Send</button>
-    <button class="chip" onclick="vnCancel()">Bin it</button></div>`:''}
+  ${vnRec?`<div class="vn-rec">
+    <div class="vn-recrow"><span class="vn-dot"></span><b class="mono" id="vn-count">0:00</b>
+      <span class="vn-slide" id="vn-slide">${vnLocked?'':'Slide left to cancel'}</span></div>
+    <div class="vn-live">${new Array(VN_BARS).fill(0).map(()=>'<i></i>').join('')}</div>
+    ${vnLocked?`<div class="vn-recrow" style="margin-top:9px">
+      <span class="vn-lockmsg">Locked. Sends itself at ${VN_MAX_MS/1000}s.</span>
+      <button class="chip" onclick="vnCancel()">Bin it</button>
+      <button class="chip on" onclick="vnStop()">Send</button></div>`
+     :`<div class="vn-recrow" style="margin-top:7px"><span class="vn-hint">Slide up to lock &#8593;</span></div>`}
+    </div>`:''}
   <div class="row">
-    <textarea id="ta" rows="1" maxlength="240" placeholder="Say it to the cars nearby…"
+    <textarea id="ta" rows="1" maxlength="240" placeholder="Say it to the cars…"
       oninput="onType(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendNow();}">${esc(draft)}</textarea>
-    ${VN_OK&&!draft.trim()?`<button class="mic ${vnRec?'on':''}" onclick="${vnRec?'vnStop()':'vnMaybeStart()'}" aria-label="${vnRec?'Stop recording':'Record a voice note'}" ${vnBusy?'disabled':''}>${MIC}</button>`:''}
+    ${!draft.trim()?`<button class="mic" onclick="stickerSheet()" aria-label="Send a sticker">${STKICO}</button>`:''}
+    ${VN_OK&&!draft.trim()?`<button class="mic ${vnRec?'on':''}" ${vnRec&&vnLocked?'onclick="vnStop()"':'onpointerdown="vnMaybeStart(event)"'}
+      onkeydown="if(event.key===' '||event.key==='Enter'){event.preventDefault();vnKey()}"
+      aria-label="${vnRec?(vnLocked?'Stop and send':'Recording, release to send'):'Hold to record a voice note'}"
+      ${vnBusy?'disabled':''}>${MIC}</button>`:''}
     <button class="send" onclick="sendNow()" aria-label="Send" ${draft.trim()?'':'disabled'}>${SEND}</button>
   </div>
   <div class="cap" id="cap" style="${draft.length>180?'':'display:none'}">${left} left</div>`;
@@ -1534,26 +1994,85 @@ window.toggleListen=()=>{
   if(tab==='me')render();
 };
 window.quick=i=>{push(TILES[i][0]);};
-window.sendNow=()=>{
+/* Sending waits on a hash now, so two quick taps of Enter could otherwise both
+   get through. A latch is the fix; clearing the box optimistically was not,
+   because a refused send then blanks what you typed and puts it back a moment
+   later, which looks exactly like the app losing your message. */
+let sending=false;
+window.sendNow=async()=>{
   const t=draft.trim();
-  if(!t)return;
-  if(push(t)){draft='';heldDraft='';renderDock();}
+  if(!t||sending)return;
+  sending=true;
+  try{ if(await push(t)){draft='';heldDraft='';renderDock();} }
+  finally{ sending=false; }
 };
-function push(txt){
+window.sendSticker=async i=>{closeSheet();await push('',i);};
+async function push(txt,stk){
   if(S.car.color<0){toast('Pick your car first');return false;}
   if(connState==='offline'){toast('You’re offline, so it didn’t send');return false;}
   if(connState!=='live'){toast('Not connected yet');return false;}
   if(!S.lane.trim()&&!pos){toast('Waiting for location');return false;}
   const cd=cooldown();
   if(cd){toast(cd);return false;}
-  const ts=Date.now(),body=cap(txt,240);
-  const ok=pub({v:1,k:'msg',id:MYID,c:S.car.color,b:S.car.body,la:wireLat(),lo:wireLng(),t:body,ts});
+  const st=(stk==null||!STICKERS[stk])?null:stk|0;
+  const body=cap(txt,240);
+  if(!body&&st==null)return false;
+  const ts=Date.now();
+  const pr=await newProof();
+  const ok=pub({v:1,k:'msg',id:MYID,c:S.car.color,b:S.car.body,la:wireLat(),lo:wireLng(),t:body,ts,
+    ...(st!=null?{st}:{}),...(pr?{cm:pr.cm}:{})});
   if(!ok){toast('Message didn’t go out');return false;}
   sendLog.push(ts);
   haptic(15);   /* felt 'sent' tick on Android; no-op on iOS */
-  addMsg({id:MYID,c:S.car.color,b:S.car.body,txt:body,ts,mine:true,delivered:false});
+  addMsg({id:MYID,c:S.car.color,b:S.car.body,txt:body,st,ts,ref:ts,mine:true,delivered:false,
+    cm:pr?pr.cm:'',nonce:pr?pr.n:''});
   return true;
 }
+
+/* ---- taking it back ----
+   Best effort by construction, and the sheet says so. This is QoS 0 over a
+   public relay with no history: it reaches the screens still listening, and
+   does nothing about someone who has driven out of range, closed the app, or
+   taken a screenshot. Saying "deleted" as though it were retracted would be a
+   lie about the one thing people would rely on. */
+const mineEditable=m=>m&&m.mine&&m.nonce&&m.cm&&!m.gone;
+window.msgMenu=ref=>{
+  const m=msgs.find(x=>x.mine&&String(x.ref)===String(ref));
+  if(!m)return;
+  if(!mineEditable(m)){toast('This one can’t be changed');return;}
+  const canEdit=!m.st&&m.st!==0;
+  openSheet(`<h3>Your message</h3>
+   <p style="font-size:.86rem;color:var(--txt-2);line-height:1.55;margin-bottom:16px">Takes it off the screens of everyone still in range and listening. It can’t reach anyone who has driven off, closed the app, or already read it.</p>
+   ${canEdit?`<textarea id="edt" rows="3" maxlength="240" style="width:100%;margin-bottom:12px">${esc(m.txt)}</textarea>
+   <button class="btn sm" style="margin-bottom:10px" onclick="doEdit('${esc(String(m.ref))}')">Save the edit</button>`:''}
+   <button class="btn danger sm" onclick="doDelete('${esc(String(m.ref))}')">Delete for everyone</button>`);
+};
+window.doDelete=async ref=>{
+  const m=msgs.find(x=>x.mine&&String(x.ref)===String(ref));
+  if(!mineEditable(m))return;
+  closeSheet();
+  pub({v:1,k:'del',id:MYID,ref:m.ref,n:m.nonce});
+  m.gone=true;
+  msgs=msgs.filter(x=>x!==m);
+  dropMsg(m);
+  paintStream();
+  toast('Deleted where it could reach');
+};
+window.doEdit=async ref=>{
+  const m=msgs.find(x=>x.mine&&String(x.ref)===String(ref));
+  if(!mineEditable(m))return;
+  const el=document.getElementById('edt');
+  const next=cap((el?el.value:'').trim(),240);
+  if(!next){toast('Nothing to save');return;}
+  if(next===m.txt){closeSheet();return;}
+  closeSheet();
+  /* A fresh commitment, because revealing this nonce spends it. Without one the
+     message would be editable exactly once and then stuck. */
+  const pr=await newProof();
+  pub({v:1,k:'edit',id:MYID,ref:m.ref,n:m.nonce,t:next,cm:pr?pr.cm:''});
+  m.txt=next;m.edited=true;m.nonce=pr?pr.n:'';m.cm=pr?pr.cm:'';
+  paintStream();
+};
 
 /* ============ PICK YOUR CAR (fallback when onboarding was already accepted) ============ */
 function rPick(){
@@ -1618,7 +2137,22 @@ view.addEventListener('click',e=>{
   const b=e.target.closest('[data-mute]');
   if(b){toggleMute(b.getAttribute('data-mute'));return;}
   const v=e.target.closest('[data-vn]');
-  if(v)vnPlay(v.getAttribute('data-vn'));
+  if(v){vnPlay(v.getAttribute('data-vn'));return;}
+  if(e.target.closest('[data-rate]')){vnCycleRate();return;}
+  const mm=e.target.closest('[data-menu]');
+  if(mm)msgMenu(mm.getAttribute('data-menu'));
+});
+/* Scrubbing is a drag, so it needs the pointer stream rather than a click. */
+view.addEventListener('pointerdown',e=>{
+  const s=e.target.closest('[data-scrub]');
+  if(!s)return;
+  const id=s.getAttribute('data-scrub');
+  vnSeek(id,e.clientX,s);
+  const move=ev=>vnSeek(id,ev.clientX,s);
+  const up=()=>{view.removeEventListener('pointermove',move);view.removeEventListener('pointerup',up);view.removeEventListener('pointercancel',up);};
+  view.addEventListener('pointermove',move);
+  view.addEventListener('pointerup',up);
+  view.addEventListener('pointercancel',up);
 });
 
 /* ============ YOU / SETTINGS ============ */

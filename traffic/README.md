@@ -71,9 +71,61 @@ wearing a hat.
 Joining remembers whatever code you were on, so leaving puts you back rather than
 quietly switching your position broadcast back on.
 
+## Stickers
+
+Twelve of them, drawn into the file as inline SVG and animated where the
+movement says something the still drawing doesn't. Only the index goes on the
+wire, so a sticker costs about a byte and arrives instantly on a bad signal.
+
+They aren't from a GIF service, and that isn't laziness. Searching Giphy or
+Tenor means an API key and a third-party request on every keystroke, inside an
+app whose pitch is that nothing is stored and nobody is watching. It also can't
+work here: a GIF runs to megabytes and one MQTT frame is capped at 64 KB.
+
+Every sticker carries a label, which is what Listen mode reads aloud and what a
+screen reader announces. It's under the drawing rather than in a tooltip,
+because someone glancing at a phone on a dashboard shouldn't have to decode a
+picture.
+
+## Taking a message back
+
+Your own messages can be edited or deleted, and it reaches every screen still in
+range and listening. It cannot reach someone who has driven off, closed the app,
+or already read it, and the app says that rather than implying the message was
+retracted.
+
+There is no account here and no signature, so an id on the wire is just a string
+a peer typed. If a delete only named whose message to remove, one modified
+client could wipe every message in range off everyone's screen. So each message
+carries a commitment: 64 bits of SHA-256 over a random nonce only the sender
+has. Deleting or editing means revealing the nonce, and every receiver checks it
+hashes to the commitment they already stored. Nothing to distribute, no keys, no
+identity, and unforgeable without inverting the hash. An edit ships a fresh
+commitment, because revealing a nonce spends it.
+
+Retractions carry no coordinates, so they're handled above the proximity gate
+that drops unlocated packets. That isn't a hole: the message being retracted
+already passed that gate when it arrived, and the proof is still required.
+
 ## Voice notes
 
-Six seconds, one tap, only while you're stopped.
+Twenty seconds, one tap, only while you're stopped. Hit the limit and it sends
+itself rather than being thrown away for being long enough.
+
+Length and bitrate are one decision, not two. It all rides in a single MQTT
+frame against a 64 KB cap that the JSON shares, and base64 adds a third on top,
+so twenty seconds at the 24 kbit/s the six-second version used would have been
+80 KB and simply wouldn't have gone out. At 12 kbit/s it's about 40 KB encoded,
+and Opus holds up fine down there for speech, which is all anyone records into a
+phone on a dashboard.
+
+While you talk there's a live level meter. It's an analyser tapped off the same
+MediaStream, not a link in the chain — the recorder is attached to the stream
+itself, so nothing in the meter can alter a sample of what gets encoded.
+
+The bars on a sent note are the real waveform, decoded from the audio rather
+than drawn for effect, and computed at both ends so nothing extra rides the
+wire. Playing one fills the bars up to the playhead.
 
 This is the one part of Lane that isn't anonymous, and the app says so in as many
 words before your first recording. It's your actual voice, going out over the
