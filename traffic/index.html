@@ -1344,6 +1344,7 @@ setInterval(()=>{
    it happens on every exit path, including the ones that throw. */
 function vnCleanup(){
   vnLocked=false;vnHold=null;
+  if(typeof vnHoldOff==='function')vnHoldOff();
   if(vnStopT){clearTimeout(vnStopT);vnStopT=null;}
   if(vnMeterT){cancelAnimationFrame(vnMeterT);vnMeterT=null;}
   try{if(vnStream)vnStream.getTracks().forEach(t=>t.stop());}catch(e){}
@@ -1577,21 +1578,35 @@ window.vnStop=vnStop;window.vnCancel=vnCancel;
    thing is testable. setPointerCapture is what keeps the drag alive once the
    finger leaves the button, which it always does. */
 const VN_CANCEL_X=-70,VN_LOCK_Y=-60;
-let vnHold=null;   /* {id,x0,y0,slide,lock} while a finger is down */
+let vnHold=null;   /* {x0,y0,slide} while a finger is down */
+/* The drag is tracked on the document, NOT on the button.
+   vnStart() re-renders the composer, which destroys the element that received
+   pointerdown and takes its pointer capture and any element-level listener with
+   it, so a gesture bound to the button stops receiving events the moment
+   recording begins. Which is to say: exactly when it matters. */
+function vnHoldOn(){
+  addEventListener('pointermove',vnMove);
+  addEventListener('pointerup',vnUp);
+  addEventListener('pointercancel',vnUp);
+}
+function vnHoldOff(){
+  removeEventListener('pointermove',vnMove);
+  removeEventListener('pointerup',vnUp);
+  removeEventListener('pointercancel',vnUp);
+}
 window.vnDown=async e=>{
   if(vnLocked||vnRec||vnBusy)return;
-  const t=e.currentTarget;
-  vnHold={id:e.pointerId,x0:e.clientX,y0:e.clientY,slide:0,lock:false};
-  try{t.setPointerCapture(e.pointerId);}catch(err){}
+  vnHold={x0:e.clientX,y0:e.clientY,slide:0};
+  vnHoldOn();
   await vnStart();
   /* Let go before the microphone opened: that is a tap, not a recording. */
   if(!vnHold&&vnRec)vnCancel();
 };
-window.vnMove=e=>{
+function vnMove(e){
   if(!vnHold||!vnRec)return;
   const dx=e.clientX-vnHold.x0,dy=e.clientY-vnHold.y0;
   if(dy<VN_LOCK_Y&&dx>VN_CANCEL_X){
-    vnHold.lock=true;vnLocked=true;vnHold=null;haptic(18);renderDock();return;
+    vnLocked=true;vnHold=null;vnHoldOff();haptic(18);renderDock();return;
   }
   const slide=Math.min(1,Math.max(0,dx/VN_CANCEL_X));
   if(slide!==vnHold.slide){
@@ -1602,14 +1617,15 @@ window.vnMove=e=>{
     if(rec)rec.classList.toggle('binning',slide>=1);
   }
 };
-window.vnUp=e=>{
+function vnUp(){
   if(!vnHold)return;
   const slide=vnHold.slide;
   vnHold=null;
+  vnHoldOff();
   if(!vnRec)return;
   if(slide>=1){haptic(25);vnCancel();return;}
   vnStop();
-};
+}
 /* Said once, before the first recording, because the trade here isn't obvious
    and finding out afterwards is too late. */
 /* Keyboard and screen-reader path. Holding a key down is not a gesture anyone
@@ -1891,8 +1907,7 @@ function stopDock(){
     <textarea id="ta" rows="1" maxlength="240" placeholder="Say it to the cars…"
       oninput="onType(this)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendNow();}">${esc(draft)}</textarea>
     ${!draft.trim()?`<button class="mic" onclick="stickerSheet()" aria-label="Send a sticker">${STKICO}</button>`:''}
-    ${VN_OK&&!draft.trim()?`<button class="mic ${vnRec?'on':''}" ${vnRec&&vnLocked?'onclick="vnStop()"':
-        'onpointerdown="vnMaybeStart(event)" onpointermove="vnMove(event)" onpointerup="vnUp(event)" onpointercancel="vnUp(event)"'}
+    ${VN_OK&&!draft.trim()?`<button class="mic ${vnRec?'on':''}" ${vnRec&&vnLocked?'onclick="vnStop()"':'onpointerdown="vnMaybeStart(event)"'}
       onkeydown="if(event.key===' '||event.key==='Enter'){event.preventDefault();vnKey()}"
       aria-label="${vnRec?(vnLocked?'Stop and send':'Recording, release to send'):'Hold to record a voice note'}"
       ${vnBusy?'disabled':''}>${MIC}</button>`:''}
