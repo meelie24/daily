@@ -1,5 +1,10 @@
 # Getting the X account wired up
 
+**Check [README.md](README.md) first.** Buffer's free plan connects to X and
+supports threads, which skips this entire document: no developer account, no
+API keys, no credit to buy. Everything below is for running the pipeline
+yourself instead.
+
 Zero assumptions. You'll be clicking through two websites and pasting four
 strings into GitHub. Twenty minutes if the developer portal is in a good mood.
 

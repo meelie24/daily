@@ -6,6 +6,36 @@ and a length check and neither of those is worth a lockfile.
 
 It is inert until you deliberately arm it. Merging it posts nothing.
 
+## Read this before you set any of it up
+
+**You probably don't need this directory.** Buffer's free plan connects to X, so
+you sign up, click Connect Channel, approve one OAuth screen, and you're done:
+no developer account, no app, no API keys, no $25 credit, no per-post billing.
+Buffer holds its own X API access and absorbs the cost, including the $0.20 that
+a post containing a link now attracts.
+
+Two things make Buffer the one rather than any scheduler. X is connectable **on
+the free tier**, where Publer and Metricool paywall it entirely. And **threads
+work on the free tier**, which is decisive here because the whole queue is built
+on putting the link in the first self-reply.
+
+Free limits: 3 channels, 10 posts queued per channel. That's queue *depth*, not a
+monthly quota, so slots free up as things publish. The launch queue is 7 posts.
+
+Don't bother with: **Later**, which dropped X entirely in August 2025;
+**Make**, which decommissioned its X app; and **Zapier**, which is
+bring-your-own-key and puts you straight back in the developer portal.
+
+So what is this directory for? Owning the pipeline. It posts from your repo with
+the copy under version control and no third party in the middle, and it's the
+only option here that survives a scheduler changing its free tier. If that isn't
+worth the setup below, use Buffer and paste from `../traffic/LAUNCH.md`. Nothing
+else in the repo depends on this.
+
+One thing applies either way: X's automation rules require an account driven by
+software to say so. Put a line in the bio before the first scheduled post,
+whichever tool sends it.
+
 ## What it does
 
 Every hour it reads `queue.json`, finds the first item that hasn't been posted
