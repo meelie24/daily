@@ -1,0 +1,120 @@
+:root {
+  --canvas: #fff8ec;
+  --surface: #ffffff;
+  --surface-muted: #f5f2ec;
+  --surface-aqua: #e4f7f6;
+  --surface-lavender: #efeaff;
+  --ink: #172126;
+  --ink-secondary: #4c5a5e;
+  --ink-muted: #667478;
+  --teal: #007a7e;
+  --teal-pressed: #005f63;
+  --cyan: #0b8fa8;
+  --violet: #7357d5;
+  --amber: #c57800;
+  --success: #167a58;
+  --danger: #b83a55;
+  --line: rgba(23, 33, 38, 0.12);
+
+  --shadow-1: 0 4px 14px rgba(23, 33, 38, 0.1);
+  --shadow-2: 0 10px 28px rgba(23, 33, 38, 0.16);
+
+  --r-control: 12px;
+  --r-object: 15px;
+  --r-panel: 18px;
+  --r-frame: 28px;
+
+  --motion-enter: 320ms;
+  --motion-exit: 280ms;
+  --motion-overlay: 300ms;
+  --motion-idle-breath: 5500ms;
+  --motion-clarity-pulse: 1200ms;
+  --motion-curve: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --font-stack:
+    "SF Pro Display", "SF Pro Text", "Figtree Variable", Figtree, Inter,
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+
+  --nav-height: 64px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  overflow-x: hidden;
+}
+
+body {
+  font-family: var(--font-stack);
+  background: var(--canvas);
+  color: var(--ink);
+  line-height: 1.5;
+  font-size: 16px;
+  min-height: 100dvh;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 3px solid var(--cyan);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::selection {
+  background: rgba(11, 143, 168, 0.22);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.motion-auto *,
+  html.motion-auto *::before,
+  html.motion-auto *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+html.motion-reduced *,
+html.motion-reduced *::before,
+html.motion-reduced *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

@@ -1,0 +1,127 @@
+.scene-canvas {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #f3ece0;
+}
+
+.scene-fallback svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.fb-mouth-talk {
+  animation: fb-talk 340ms ease-in-out infinite alternate;
+}
+
+@keyframes fb-talk {
+  from {
+    ry: 1.2;
+  }
+  to {
+    ry: 3;
+  }
+}
+
+.fb-halo {
+  animation: fb-halo-pulse 1100ms ease-in-out infinite;
+  transform-origin: center;
+}
+
+@keyframes fb-halo-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.fb-pulse {
+  animation: fb-pulse-travel 1100ms ease-out infinite;
+}
+
+@keyframes fb-pulse-travel {
+  0% {
+    transform: translate(var(--from-x, 0), var(--from-y, 0));
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+}
+
+.fb-user-turn {
+  animation: fb-user-rise 550ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes fb-user-rise {
+  from {
+    transform: translate(0, 190px);
+    opacity: 0.4;
+  }
+  to {
+    transform: translate(0, 0);
+    opacity: 0.9;
+  }
+}
+
+.fb-user-faded {
+  animation:
+    fb-user-rise 550ms cubic-bezier(0.22, 1, 0.36, 1) both,
+    fb-user-drift 800ms 550ms ease-out both;
+}
+
+@keyframes fb-user-drift {
+  to {
+    transform: translate(0, -52px);
+    opacity: 0;
+  }
+}
+
+.fb-printer-blink {
+  animation: fb-blink 640ms ease-in-out infinite alternate;
+}
+
+@keyframes fb-blink {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fb-paper-on {
+  animation: fb-paper 1500ms ease-out infinite;
+  transform-origin: 43px 149px;
+}
+
+@keyframes fb-paper {
+  0% {
+    transform: translateY(0) scaleY(0.2);
+  }
+  60%,
+  100% {
+    transform: translateY(-5px) scaleY(1);
+  }
+}
+
+.fb-call-on {
+  animation: fb-blink 900ms ease-in-out infinite alternate;
+}
+
+.fb-door-open {
+  transform: translateX(6px) skewY(-4deg);
+  transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.fb-figure {
+  transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
