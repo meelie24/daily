@@ -53,6 +53,30 @@ Lane is built on that assumption rather than pretending otherwise:
 A **shared code** (any word both of you type) ignores location completely and
 publishes no coordinates at all. Good for a convoy, or for testing with a friend.
 
+## Road notes
+
+A message only exists while someone else is here. A note is pinned to this
+stretch of road for two hours, so a driver arriving after you've left still
+sees "speed trap past the bridge" on an otherwise empty screen. It rides the
+relay's retain flag: one retained payload per topic, one topic per note, an
+empty payload clears it. No backend.
+
+Notes are the one exception to "nothing is stored", and the app says so before
+your first pin rather than after: a note sits on the public relay until it
+expires or is taken down. One note per person, pinning replaces it, and stale
+notes get swept by whoever meets them, since 3.1.1 retained messages never
+expire on their own.
+
+## The road itself
+
+When nobody's in range, the room still shows the road: a one-line rain nowcast
+anywhere in the world (Open-Meteo), and live road disruptions inside London
+(TfL). Both are keyless and fetched straight from the page, because any API key
+shipped in a public page is everyone's key — which is also why most traffic
+feeds can't be used here, and the app doesn't pretend otherwise. Coordinates
+sent to the weather feed are rounded to about 5 km first; TfL gets no
+coordinates at all.
+
 ## The Lane Hour
 
 Proximity chat has a cold start problem it can't solve on its own. The first
@@ -109,15 +133,16 @@ already passed that gate when it arrived, and the proof is still required.
 
 ## Voice notes
 
-Twenty seconds, one tap, only while you're stopped. Hit the limit and it sends
+Up to a minute, held down like everyone expects: hold the mic to talk, slide
+left to bin it, slide up to lock so you can let go. Hit the limit and it sends
 itself rather than being thrown away for being long enough.
 
-Length and bitrate are one decision, not two. It all rides in a single MQTT
-frame against a 64 KB cap that the JSON shares, and base64 adds a third on top,
-so twenty seconds at the 24 kbit/s the six-second version used would have been
-80 KB and simply wouldn't have gone out. At 12 kbit/s it's about 40 KB encoded,
-and Opus holds up fine down there for speech, which is all anyone records into a
-phone on a dashboard.
+A minute doesn't fit one MQTT frame, so a note goes out in 12 KB chunks and is
+reassembled on arrival. Each chunk repeats the header, which lets a receiver
+start from whichever piece lands first. The honest cost: this is QoS 0, so a
+lost chunk loses the note — it waits 25 seconds, then gives up. Opus at
+12 kbit/s holds up fine for speech, which is all anyone records into a phone on
+a dashboard.
 
 While you talk there's a live level meter. It's an analyser tapped off the same
 MediaStream, not a link in the chain — the recorder is attached to the stream
@@ -219,6 +244,7 @@ You need two devices. It won't invent traffic that isn't there.
 | `traffic/og.png` | The 1200×630 card the link unfurls as |
 | `traffic/DOMAIN.md` | Getting it a real URL, free |
 | `traffic/LAUNCH.md` | Where to launch it, and the copy |
+| `traffic/PREMIUM.md` | The monetization plan, researched |
 | `announce/` | Posts the launch queue to one X account on a schedule |
 | `.github/workflows/pages.yml` | Deploys the repo to GitHub Pages on push to main |
 | `index.html` | A different app that already lived in this repo, untouched |

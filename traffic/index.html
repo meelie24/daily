@@ -368,6 +368,12 @@ input[type=text]::placeholder{color:var(--txt-3)}
 .notecard>div{flex:1;min-width:0}
 .notecard b{font-size:.9rem;letter-spacing:-.01em;display:block;overflow-wrap:break-word}
 .notecard small{display:block;font-size:.7rem;color:var(--txt-2);margin-top:3px}
+/* the road layer: quiet, informational, visually below notes and chat */
+.ri{margin-bottom:14px;padding:13px 15px;border-radius:1.3rem;background:var(--glass);border:1px solid var(--line)}
+.ri-row{margin-bottom:8px}
+.ri-row b{font-size:.88rem;letter-spacing:-.01em;display:block}
+.ri-row small{display:block;font-size:.7rem;color:var(--txt-2);margin-top:2px}
+.ri-src{color:var(--txt-3);margin-top:2px}
 
 /* onboarding */
 #gate{position:fixed;inset:0;z-index:200;background:var(--void);overflow-y:auto;display:none;
@@ -1275,6 +1281,7 @@ function netTick(){
     schedulePaint();
   }
   if(now-lastHey>HEARTBEAT){lastHey=now;sayHey();}
+  riFetch();
 }
 setInterval(netTick,5000);
 window.addEventListener('pagehide',()=>{sayBye();});
@@ -1919,6 +1926,77 @@ function voiceHTML(m){
 /* Coarse relative time, a 6-minute-old "Accident ahead" must not read as live. */
 function ago(ts){const s=Math.max(0,(Date.now()-ts)/1000);return s<45?'now':s<90?'1m':s<3600?Math.round(s/60)+'m':Math.round(s/3600)+'h';}
 /* Empty-state copy, state-aware so "quiet" never reads as "broken". */
+/* ============ THE ROAD ITSELF ============ */
+/* An empty room used to be a dead end. These are the two live feeds a page with
+   no backend can ask directly, so being first on the road still tells you
+   something true about it. Both are keyless and CORS-open, checked rather than
+   assumed; everything else out there wants a key that can't ship in a public
+   page without becoming everyone's key.
+
+   Privacy: Open-Meteo gets coordinates rounded to ~5 km, which is all weather
+   needs. TfL gets no coordinates at all; its feed is city-wide and we filter
+   locally. Neither request carries a cookie or a referrer. */
+const RI_REFRESH=5*60*1000;
+const riSnap=v=>Math.round(v*20)/20;
+/* Greater London, roughly. Outside it the TfL call is skipped entirely. */
+const inLondon=()=>pos&&pos.la>51.25&&pos.la<51.72&&pos.lo>-0.55&&pos.lo<0.35;
+let riWx=null,riTfl=null,riAt=0,riBusy=false;
+
+async function riFetch(){
+  if(riBusy||!pos||S.lane.trim()||connState==='offline')return;
+  if(Date.now()-riAt<RI_REFRESH)return;
+  riBusy=true;
+  const grab=async(url,ms)=>{
+    const ac=('AbortController'in window)?new AbortController():null;
+    const t=ac?setTimeout(()=>ac.abort(),ms):null;
+    try{
+      const r=await fetch(url,{signal:ac?ac.signal:undefined,referrerPolicy:'no-referrer',credentials:'omit'});
+      return r.ok?await r.json():null;
+    }catch(e){return null;}      /* a feed being down must never look like an app bug */
+    finally{if(t)clearTimeout(t);}
+  };
+  const wx=grab('https://api.open-meteo.com/v1/forecast?latitude='+riSnap(pos.la)+'&longitude='+riSnap(pos.lo)
+    +'&minutely_15=precipitation&current=precipitation,wind_gusts_10m,weather_code&forecast_hours=1',6000);
+  const tfl=inLondon()?grab('https://api.tfl.gov.uk/Road/all/Disruption',8000):Promise.resolve(null);
+  const[w,t]=await Promise.all([wx,tfl]);
+  riAt=Date.now();riBusy=false;
+  riWx=w;
+  /* Keep only what gets rendered, bounded, and only strings we make ourselves. */
+  riTfl=Array.isArray(t)?t.slice(0,40).map(d=>({
+    road:cap(String(d&&d.roadName||''),24),
+    sev:cap(String(d&&d.severityLevel||''),16),
+    what:cap(String(d&&(d.currentUpdate||d.comments)||''),110),
+  })).filter(d=>d.road&&d.what).slice(0,3):riTfl;
+  if(tab==='road'&&!moving)scheduleStream();
+}
+setInterval(riFetch,60*1000);
+
+/* One plain sentence, or nothing. A weather widget is not the product. */
+function riWeatherLine(){
+  if(!riWx)return '';
+  try{
+    const cur=riWx.current||{};
+    const gust=+cur.wind_gusts_10m;
+    const nowP=+cur.precipitation;
+    const m=riWx.minutely_15&&riWx.minutely_15.precipitation||[];
+    const soon=m.slice(0,4).findIndex(v=>+v>0.2);
+    if(nowP>2)return 'Heavy rain on this stretch right now.';
+    if(nowP>0.1)return 'Raining here now.';
+    if(soon>=0)return 'Rain reaching this stretch in about '+((soon+1)*15)+' minutes.';
+    if(isFinite(gust)&&gust>60)return 'Gusts around '+Math.round(gust)+' km/h out there.';
+  }catch(e){}
+  return '';
+}
+function roadInfoHTML(){
+  if(quiet||S.lane.trim())return '';
+  const wl=riWeatherLine();
+  const t=riTfl&&riTfl.length?riTfl:null;
+  if(!wl&&!t)return '';
+  return `<div class="ri">${wl?`<div class="ri-row"><b>${esc(wl)}</b><small>road weather, updated ${esc(ago(riAt))}</small></div>`:''}
+    ${t?t.map(d=>`<div class="ri-row"><b>${esc(d.road)} · ${esc(d.sev)}</b><small>${esc(d.what)}</small></div>`).join(''):''}
+    <div class="ri-src mono">live from ${t?'TfL and ':''}Open-Meteo</div></div>`;
+}
+
 const inviteBtn='<button class="btn ghost sm" style="margin-top:14px;max-width:280px;margin-left:auto;margin-right:auto" onclick="invite()">Invite the car next to you →</button>';
 const widenBtn='<button class="btn ghost sm" style="margin-top:8px;max-width:280px;margin-left:auto;margin-right:auto" onclick="setRadius(2000)">Widen range to 2 km</button>';
 function emptyMsg(){
@@ -1965,7 +2043,7 @@ function paintStream(){
      immediately; message BURSTS are throttled in addMsg (scheduleDrive) so they
      can't strobe the card. */
   if(moving){paintDrive(el);return;}
-  const strip=notesHTML();
+  const strip=roadInfoHTML()+notesHTML();
   if(!msgs.length){
     el.innerHTML=strip+`<div class="empty">${emptyMsg()}</div>`;
     return;
@@ -1974,7 +2052,7 @@ function paintStream(){
      reading scrollback down when other people's traffic arrives. */
   const nearBottom=(window.innerHeight+window.scrollY)>=(document.body.scrollHeight-160);
   const dup=dupCombos();
-  el.innerHTML=notesHTML()+msgs.map(m=>m.sys
+  el.innerHTML=roadInfoHTML()+notesHTML()+msgs.map(m=>m.sys
     ?`<div class="msg sys"><div class="bub">${esc(m.txt)}</div></div>`
     :`<div class="msg ${m.mine?'mine':''}">${swatch(m.c)}
        <div class="bub"><div class="who">${esc(m.mine?'You':label(m.id,m.c,m.b,dup))}<span class="when" data-ts="${m.ts}">${ago(m.ts)}</span>${
