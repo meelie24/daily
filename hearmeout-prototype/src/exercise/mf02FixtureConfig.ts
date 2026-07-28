@@ -271,7 +271,7 @@ export const gameCopy = {
   leave: "Leave",
   altControls: "Button controls",
   altControlsHint:
-    "Pick a strength, watch the room, then send when you choose. Same judgment, different hands.",
+    "Pick a strength, watch the room, then send when you choose.",
   sendNow: "Send now",
   strengthNames: {
     light: "Light",

@@ -228,19 +228,19 @@ export const argumentStyle = {
   results: {
     push: {
       heading: "Under pressure, you press harder.",
-      body: "Your words get more direct and your delivery gets heavier. The point usually survives. The timing is what tends to get lost.",
+      body: "Your words get more direct and your delivery gets heavier. The point gets through, but the timing usually suffers.",
     },
     speed: {
       heading: "Under pressure, you speed up.",
-      body: "You answer faster and stack your points so nothing gets dropped. People can lose the thread, not because it's unclear, but because there's no room between the pieces.",
+      body: "You answer faster and stack your points so nothing gets dropped. The other person can lose the thread because there's no pause between the pieces.",
     },
     quiet: {
       heading: "Under pressure, you go quiet.",
-      body: "You shorten your answers and wait it out. That protects the moment, but the point can leave the room with you.",
+      body: "You shorten your answers and wait it out. That keeps things calm, but the thing you needed to say never gets said.",
     },
     watch: {
       heading: "Under pressure, you watch first.",
-      body: "You track the other person before you commit to your own point. That reads as care. Sometimes the point waits so long it misses its spot.",
+      body: "You track the other person before you commit to your own point. That usually reads as care. Sometimes you wait so long the moment passes.",
     },
   },
   resultNote:
@@ -295,7 +295,7 @@ export const clarity = {
   savedConfirm: "Saved to Pocket. Your text stays on this device and was not stored.",
   practiceRoute: {
     label: "Work on the delivery side",
-    heading: "The words can be right and still land wrong.",
+    heading: "Sometimes the message is fine and the timing is the problem.",
     action: "Practice responsive delivery",
   },
 };
@@ -314,7 +314,7 @@ export const savedItems: SavedItem[] = [
     id: "saved-style-speed",
     source: "Argument Style",
     title: "Under pressure, you speed up",
-    body: "Your pace climbs and the points stack. The thread needs room between the pieces.",
+    body: "Your pace climbs and the points stack up. The other person needs a pause to follow.",
     savedOn: "Jul 14",
   },
   {
@@ -436,6 +436,6 @@ export const settingsCopy = {
 
 export const guide = {
   name: "The Guide",
-  bridgeLine: "He watches the practice, not the person. He'll show up when something's worth saying.",
-  resultLine: "You adjusted before the room asked you to. I noticed.",
+  bridgeLine: "He follows your practice and speaks up when he has something useful to say.",
+  resultLine: "You noticed the room change and adjusted without being told. That's the skill.",
 };
