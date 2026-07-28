@@ -360,6 +360,15 @@ input[type=text]::placeholder{color:var(--txt-3)}
    road is a real accessibility problem, so honour the system setting. */
 @media (prefers-reduced-motion:reduce){.stk svg *,.stkpick svg *{animation:none!important}}
 
+/* road notes: amber, because they are neither me nor another live car */
+.notes{margin-bottom:14px}
+.notes-h{color:var(--txt-3);margin-bottom:8px}
+.notecard{display:flex;align-items:center;gap:11px;padding:12px 14px;margin-bottom:8px;
+  border-radius:1.3rem;background:rgba(235,190,80,.06);border:1px solid rgba(235,190,80,.28)}
+.notecard>div{flex:1;min-width:0}
+.notecard b{font-size:.9rem;letter-spacing:-.01em;display:block;overflow-wrap:break-word}
+.notecard small{display:block;font-size:.7rem;color:var(--txt-2);margin-top:3px}
+
 /* onboarding */
 #gate{position:fixed;inset:0;z-index:200;background:var(--void);overflow-y:auto;display:none;
   padding:calc(20px + env(safe-area-inset-top)) 10px calc(20px + env(safe-area-inset-bottom))}
@@ -538,7 +547,7 @@ function meetCard(){
 /* What to call the current room in the summary rows. */
 const laneLabel=()=>inMeet()?MEET.name:S.lane.trim();
 
-const blank=()=>({car:{color:-1,body:0},radius:500,lane:'',prevLane:'',broker:0,customBroker:'',gate:0,sound:true,listen:false,keepAwake:true,vnTold:0});
+const blank=()=>({car:{color:-1,body:0},radius:500,lane:'',prevLane:'',broker:0,customBroker:'',gate:0,sound:true,listen:false,keepAwake:true,vnTold:0,myNote:null});
 let S=load();
 function load(){
   try{
@@ -804,9 +813,12 @@ function MqttClient(url,opts){
     if(watchT)clearInterval(watchT);watchT=null;
     if(connackT)clearTimeout(connackT);connackT=null;}
   this.close=function(){stop();if(ws){ws.onclose=null;try{ws.close();}catch(e){}}ws=null;};
-  this.publish=function(topic,payload){
+  this.publish=function(topic,payload,retain){
     if(!alive)return false;
-    send(pkt(3,0,[...sBytes(topic),...te.encode(payload)]));
+    /* retain bit 0: the broker keeps the last retained payload per topic and
+       hands it to every future subscriber. An empty retained payload clears it.
+       That pair is the entire storage model for road notes. */
+    send(pkt(3,retain?1:0,[...sBytes(topic),...te.encode(payload)]));
     return true;
   };
   this.subscribe=function(topics){
@@ -859,7 +871,9 @@ function MqttClient(url,opts){
       const topic=td.decode(body.subarray(2,2+tl));
       const qos=(flags>>1)&3;
       const off=2+tl+(qos>0?2:0);
-      self.onmessage(topic,td.decode(body.subarray(off)));
+      /* retain=1 marks replayed backlog delivered on subscribe, not a live
+         event; the app must not blip or speak for history. */
+      self.onmessage(topic,td.decode(body.subarray(off)),(flags&1)===1);
     }
   }
 }
@@ -879,7 +893,11 @@ const myCell=()=>S.lane.trim()?null:(pos?ghEncode(pos.la,pos.lo,GH_PREC):null);
 const topicsFor=()=>{
   if(S.lane.trim())return['lane/v1/priv/'+encodeURIComponent(S.lane.trim().toLowerCase())];
   const c=myCell();
-  return c?ghNeighbors(c).map(x=>'lane/v1/'+x):[];
+  if(!c)return[];
+  const n=ghNeighbors(c);
+  /* Chat and notes ride separate trees: notes are retained and chat is not, and
+     a shared-code room never subscribes to either kind of location topic. */
+  return n.map(x=>'lane/v1/'+x).concat(n.map(x=>'lane/v1/note/'+x+'/#'));
 };
 const myTopic=()=>{
   if(S.lane.trim())return 'lane/v1/priv/'+encodeURIComponent(S.lane.trim().toLowerCase());
@@ -901,7 +919,10 @@ function netStart(){
       syncSubs();sayHey();
       if(tab==='road')render();
     },
-    onmessage(topic,raw){onWire(raw);},
+    onmessage(topic,raw,retained){
+      if(topic.indexOf('lane/v1/note/')===0){onNoteWire(topic,raw,retained);return;}
+      onWire(raw);
+    },
     onclose(why){
       const was=connState;
       setConn('off');subbed=[];
@@ -939,6 +960,104 @@ function pub(obj){
   if(!t||connState!=='live')return false;
   return mq.publish(t,JSON.stringify(obj));
 }
+
+/* ============ ROAD NOTES ============ */
+/* A message only exists if someone else is here at the same moment, which is
+   the whole cold-start problem. A note is pinned to this stretch of road via
+   the broker's retain flag, so a driver arriving twenty minutes from now still
+   sees it: one retained payload per topic, one topic per note, and an empty
+   retained payload clears it.
+
+   Honesty first: unlike chat, a note IS stored, on the public relay, until it
+   expires or is cleared. The pin sheet says so before the first one. And there
+   is no ownership at the broker: anyone can clear any note by publishing empty
+   to its topic. We don't pretend otherwise, we just don't advertise it in the
+   UI, the same posture as the client-side rate limit. */
+const NOTE_TTL=2*60*60*1000;
+const NOTE_CHARS=120;          /* a note is a road sign, not a post */
+const NOTE_KEEP=60;            /* hard cap on the map, hostile floods included */
+const NOTE_SHOW=12;
+const notes=new Map();         /* topic -> {id,c,b,d,t,ts,mine} */
+
+function onNoteWire(topic,raw,retained){
+  /* Empty retained payload = the note was cleared, possibly by us. */
+  if(!raw){if(notes.delete(topic)){if(S.myNote&&S.myNote.topic===topic){S.myNote=null;save();}scheduleStream();}return;}
+  if(S.lane.trim())return;                      /* positional feature, off in a shared code */
+  const parts=topic.split('/');                 /* lane/v1/note/<cell>/<id> */
+  if(parts.length!==5||!/^[a-z0-9]{4,8}$/.test(parts[4]))return;
+  let m;
+  try{m=JSON.parse(raw);}catch(e){return;}
+  if(!m||m.v!==1||m.k!=='note'||typeof m.id!=='string'||m.id.length>MAX_ID)return;
+  const now=Date.now();
+  const ts=+m.ts;
+  /* Retained messages outlive their welcome on the broker (3.1.1 has no expiry),
+     so whoever meets a stale one sweeps it up for everyone. */
+  if(!isFinite(ts)||now-ts>NOTE_TTL){if(retained&&mq)mq.publish(topic,'',true);return;}
+  if(ts-now>5*60*1000)return;                   /* a future timestamp is a lie */
+  const txt=cap(String(m.t==null?'':m.t),NOTE_CHARS);
+  if(!txt.trim())return;
+  const la=+m.la,lo=+m.lo;
+  if(!isFinite(la)||!isFinite(lo)||(!la&&!lo))return;   /* a note is somewhere or it is nothing */
+  let d=null;
+  if(pos)d=dist(pos.la,pos.lo,la,lo);
+  if(d!=null&&d>Math.max(S.radius,2000))return; /* the 3x3 subscribe overshoots the radius */
+  if(!notes.has(topic)&&notes.size>=NOTE_KEEP){ /* oldest out, bounded however hostile the relay */
+    let oldK=null,oldT=Infinity;
+    notes.forEach((v,k)=>{if(v.ts<oldT){oldT=v.ts;oldK=k;}});
+    if(oldK)notes.delete(oldK);
+  }
+  const mine=!!(S.myNote&&S.myNote.topic===topic);
+  notes.set(topic,{id:String(m.id),c:clamp(m.c|0,0,COLORS.length-1),b:clamp(m.b|0,0,BODIES.length-1),d,t:txt,ts,mine});
+  if(!retained&&!mine&&!quiet&&!moving&&S.sound)blip();   /* live pin nearby; history stays silent */
+  scheduleStream();
+}
+/* TTL is client-side, so age out on the same GC beat as messages. */
+setInterval(()=>{
+  const now=Date.now();let ch=false;
+  notes.forEach((n,k)=>{if(now-n.ts>NOTE_TTL){notes.delete(k);ch=true;}});
+  if(ch&&tab==='road')scheduleStream();
+},30000);
+
+function pinNote(txt){
+  const t=cap(String(txt||'').trim(),NOTE_CHARS);
+  if(!t)return false;
+  if(S.lane.trim()||!pos){toast('Notes need your location');return false;}
+  if(connState!=='live'){toast('Not connected yet');return false;}
+  const cd=cooldown();
+  if(cd){toast(cd);return false;}
+  if(S.myNote)removeNote(true);                 /* one note per person; pinning replaces */
+  const cell=myCell();
+  if(!cell)return false;
+  const topic='lane/v1/note/'+cell+'/'+rid(6);
+  const ts=Date.now();
+  if(!mq.publish(topic,JSON.stringify({v:1,k:'note',id:MYID,c:S.car.color,b:S.car.body,la:wireLat(),lo:wireLng(),t,ts}),true)){
+    toast('Didn’t go out');return false;
+  }
+  sendLog.push(ts);
+  S.myNote={topic,ts,t};save();
+  notes.set(topic,{id:MYID,c:S.car.color,b:S.car.body,d:0,t,ts,mine:true});
+  haptic(15);
+  scheduleStream();
+  return true;
+}
+function removeNote(silent){
+  if(!S.myNote)return;
+  if(mq&&connState==='live')mq.publish(S.myNote.topic,'',true);
+  notes.delete(S.myNote.topic);
+  S.myNote=null;save();
+  if(!silent){toast('Note taken down');scheduleStream();}
+}
+window.removeNote=removeNote;
+window.noteSheet=()=>{
+  const mine=S.myNote&&Date.now()-S.myNote.ts<NOTE_TTL?S.myNote:null;
+  openSheet(`<h3>Pin a road note</h3>
+   <p style="font-size:.86rem;color:var(--txt-2);line-height:1.6;margin-bottom:14px">It sticks to this stretch of road for about two hours, so a driver passing later still sees it. Unlike chat, a note <b style="color:var(--txt)">is stored</b> on the public relay until it expires, and everyone in range can read it.</p>
+   ${mine?`<div class="notecard" style="margin-bottom:12px">${swatch(S.car.color)}<div><b>${esc(mine.t)}</b><small>your note · ${esc(ago(mine.ts))}</small></div></div>
+   <button class="btn danger sm" onclick="removeNote();closeSheet()">Take it down</button>`
+   :`<input type="text" id="notein" maxlength="${NOTE_CHARS}" placeholder="Speed trap past the bridge…">
+   <button class="btn sm" style="margin-top:12px" onclick="if(pinNote(document.getElementById('notein').value))closeSheet()">Pin it for 2 hours</button>`}`);
+};
+
 /* In a private lane the room is the code, not the place, so don't put any
    position on the wire at all. Nothing to leak, nothing to filter on. */
 const wireLat=()=>(S.lane.trim()||!pos)?0:snap(pos.la);
@@ -1734,7 +1853,7 @@ function rRoad(){
   return `<div class="ghead">
     <div class="hrow">${statusChip()}<span class="mono" style="color:var(--txt-info)">${esc(rangeTxt())}</span></div>
     <h1 class="disp">${esc(greet())}.<br><em>${esc(me)}</em></h1>
-    <div class="sub">Whatever you send goes to every car within ${esc(rangeTxt())}, over a public relay. It’s a bit like shouting out the window, so anyone can listen in. Nothing gets stored.</div>
+    <div class="sub">Whatever you send goes to every car within ${esc(rangeTxt())}, over a public relay. It’s a bit like shouting out the window, so anyone can listen in. Chat is never stored; a pinned note is, for two hours.</div>
   </div>
   ${inMeet()?`<div class="warnbox"><b>You’re in ${esc(MEET.name)}</b>
     <p>Location is ignored in here, so you’re with whoever else joined rather than the cars around you. ${esc(meetWindow(Date.now()).open?'It runs for about another '+Math.max(1,Math.round((meetWindow(Date.now()).end-Date.now())/60000))+' minutes.':'It’s not on yet, so it may well be quiet.')} <button class="chip" style="min-height:40px;margin-top:8px;padding:9px 16px;font-size:.8rem" onclick="leaveMeet()">Leave</button></p></div>`:''}
@@ -1759,6 +1878,16 @@ function stickerBubble(m){
   const s=STICKERS[m.st];
   if(!s)return `<div class="txt">${esc(m.txt)}</div>`;
   return `<div class="stk">${stickerSVG(m.st,64)}<span>${esc(s.label)}</span></div>`;
+}
+/* Pinned notes, newest first. mine floats to the top so taking it down is one
+   tap, and the section only exists when there is something in it. */
+function notesHTML(){
+  if(quiet||S.lane.trim()||!notes.size)return '';
+  const list=[...notes.values()].sort((a,b)=>(b.mine-a.mine)||(b.ts-a.ts)).slice(0,NOTE_SHOW);
+  return `<div class="notes"><div class="notes-h mono">Pinned on this road</div>${list.map(n=>
+    `<div class="notecard">${swatch(n.c)}<div><b>${esc(n.t)}</b>
+      <small>${esc(n.mine?'your note':carName(n))} · ${esc(ago(n.ts))}${n.d!=null&&!n.mine?' · '+esc(band(n.d)||'in range'):''}</small></div>${
+      n.mine?`<button class="chip" style="min-height:40px;padding:9px 14px;font-size:.74rem" onclick="removeNote()">Take down</button>`:''}</div>`).join('')}</div>`;
 }
 const mmss=ms=>{const t=Math.max(0,Math.round(ms/1000));return Math.floor(t/60)+':'+String(t%60).padStart(2,'0');};
 /* A voice note bubble. Where the recording codec can't be played here, say that
@@ -1836,15 +1965,16 @@ function paintStream(){
      immediately; message BURSTS are throttled in addMsg (scheduleDrive) so they
      can't strobe the card. */
   if(moving){paintDrive(el);return;}
+  const strip=notesHTML();
   if(!msgs.length){
-    el.innerHTML=`<div class="empty">${emptyMsg()}</div>`;
+    el.innerHTML=strip+`<div class="empty">${emptyMsg()}</div>`;
     return;
   }
   /* Only follow the tail if the user is already near it, don't yank someone
      reading scrollback down when other people's traffic arrives. */
   const nearBottom=(window.innerHeight+window.scrollY)>=(document.body.scrollHeight-160);
   const dup=dupCombos();
-  el.innerHTML=msgs.map(m=>m.sys
+  el.innerHTML=notesHTML()+msgs.map(m=>m.sys
     ?`<div class="msg sys"><div class="bub">${esc(m.txt)}</div></div>`
     :`<div class="msg ${m.mine?'mine':''}">${swatch(m.c)}
        <div class="bub"><div class="who">${esc(m.mine?'You':label(m.id,m.c,m.b,dup))}<span class="when" data-ts="${m.ts}">${ago(m.ts)}</span>${
@@ -1903,7 +2033,7 @@ function stopDock(){
   return `<div class="tiles">${TILES.map((t,i)=>
     `<button class="tile ${t[1]}" onclick="quick(${i})">${esc(t[0])}</button>`).join('')}</div>
   ${quiet?`<button class="quiet-btn on" style="margin-bottom:10px" onclick="toggleQuiet()">${hushUntil?'Hushed · tap to come back':'Quiet on · tap to come back'}</button>`
-    :`<div class="tiles" style="padding-bottom:0;margin-bottom:8px"><button class="tile" onclick="hush()">Hush 15 min</button><button class="tile" onclick="toggleQuiet()">Quiet</button></div>`}
+    :`<div class="tiles" style="padding-bottom:0;margin-bottom:8px"><button class="tile" onclick="hush()">Hush 15 min</button><button class="tile" onclick="toggleQuiet()">Quiet</button>${(!S.lane.trim()&&pos)?`<button class="tile" onclick="noteSheet()">${S.myNote?'Your note':'Pin a note'}</button>`:''}</div>`}
   ${heldDraft?`<button class="btn ghost sm" style="margin-bottom:10px" onclick="restore()">Finish your message?</button>`:''}
   ${vnRec?`<div class="vn-rec">
     <div class="vn-recrow"><span class="vn-dot"></span><b class="mono" id="vn-count">0:00</b>
