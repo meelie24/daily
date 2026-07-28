@@ -21,6 +21,24 @@ existing `meelie24.github.io/daily/traffic/` URL both keep working untouched,
 because GitHub Pages isn't changed at all. Two hosts, same repo, no file moves,
 no new repo, no CNAME committed.
 
+## First, though: you may not need this
+
+`meelie24.github.io/daily/traffic/` already works and costs nothing. The only
+thing anything below buys is a shorter link. If you don't want to sign up for
+another service, stopping here is a real answer and the app is unaffected.
+
+Worth knowing before you start: none of this is scriptable. Cloudflare, Netlify
+and Vercel all require their GitHub App to be installed through a browser OAuth
+flow, so nobody can hand the git connection to a script or an agent holding a
+token. Budget about fifteen clicks, not the six form fields below. Cloudflare
+Pages is also in maintenance mode as of 2026, with new work pointed at Workers;
+existing Pages projects keep running.
+
+If you have a terminal, `npx surge ./traffic lane.surge.sh` is genuinely one
+step: it prompts for an email and a password inline, no browser, no confirmation
+mail. After that it's token-based and fully scriptable. The catch is that surge
+is one small vendor with no SLA, so keep GitHub Pages running behind it.
+
 ## Setting it up
 
 **Make the account.** `dash.cloudflare.com/sign-up`, email and password, confirm
@@ -97,9 +115,10 @@ one.
 * **is-a.dev.** Same eligibility problem, plus a technical dead end: you never
   hold the DNS, so the merged CNAME won't attach to Cloudflare Pages, which
   refuses it with Error 1014.
-* **Vercel Hobby.** Free, but the terms restrict it to non-commercial projects.
-  Also, Deployment Protection is on by default and serves crawlers a login page,
-  so link previews fail outright.
+* **Vercel Hobby.** Free, but the terms restrict it to non-commercial projects,
+  which this is meant not to be. (An earlier draft of this file also said
+  Deployment Protection breaks link previews. It doesn't: the production alias
+  stays public. The licence is the reason, not that.)
 * **Netlify.** Works the same way (Publish directory `traffic`, no build command)
   and commercial use is fine, but new accounts get 300 credits a month and the
   site goes **offline** when they run out. A hard quota is the wrong failure mode
