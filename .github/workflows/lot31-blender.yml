@@ -31,15 +31,41 @@ jobs:
         with:
           version: "4.5"
 
+      - name: Install headless OpenGL and EGL libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb \
+            libegl1 \
+            libegl-mesa0 \
+            libgl1 \
+            libgl1-mesa-dri \
+            libglx0 \
+            libgbm1 \
+            libdrm2 \
+            libx11-6 \
+            libxext6 \
+            libxi6 \
+            libxfixes3 \
+            libxrender1 \
+            libxxf86vm1 \
+            libxkbcommon0 \
+            libwayland-client0 \
+            libsm6 \
+            libice6
+
       - name: Show Blender version
         run: blender --version
 
       - name: Build editable scene, GLB and preview renders
         shell: bash
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          MESA_GL_VERSION_OVERRIDE: "4.3"
         run: |
           set -o pipefail
           mkdir -p lot31_output
-          blender --background --factory-startup \
+          xvfb-run -a -s "-screen 0 1920x1080x24" blender --background --factory-startup \
             --python lot31_blender/build_scene.py \
             -- --output-dir "$GITHUB_WORKSPACE/lot31_output" \
             2>&1 | tee lot31_output/build.log
