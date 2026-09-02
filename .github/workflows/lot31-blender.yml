@@ -1,0 +1,100 @@
+name: Build Lot 31 Realistic Blender House
+
+on:
+  push:
+    branches:
+      - lot31-blender-realistic
+    paths:
+      - "lot31_blender_bundle/**"
+      - ".github/workflows/lot31-blender.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-house:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Check out the dedicated build branch
+        uses: actions/checkout@v5
+
+      - name: Unpack the Blender source bundle
+        run: |
+          mkdir -p lot31_blender
+          cat lot31_blender_bundle/noref.part.* | base64 --decode | tar -xz -C lot31_blender
+          python -m py_compile lot31_blender/build_scene.py lot31_blender/package_viewer.py
+
+      - name: Install Blender 4.5 LTS
+        uses: bradyajohnston/setup-blender@v5
+        with:
+          version: "4.5"
+
+      - name: Show Blender version
+        run: blender --version
+
+      - name: Build editable scene, GLB and preview renders
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p lot31_output
+          blender --background --factory-startup \
+            --python lot31_blender/build_scene.py \
+            -- --output-dir "$GITHUB_WORKSPACE/lot31_output" \
+            2>&1 | tee lot31_output/build.log
+
+      - name: Package the GLB into a standalone 360-degree viewer
+        run: |
+          python lot31_blender/package_viewer.py \
+            --output-dir lot31_output \
+            --template lot31_blender/viewer_template.html
+
+      - name: Verify required deliverables
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test -s lot31_output/Lot31_Realistic_Blender_House.blend
+          test -s lot31_output/Lot31_Realistic_Blender_House.glb
+          test -s lot31_output/Lot31_Standalone_Interactive_3D.html
+          test -s lot31_output/01_front_exterior.png
+          test -s lot31_output/02_backyard_pool.png
+          test -s lot31_output/03_ground_floor_dollhouse.png
+          test -s lot31_output/04_open_plan_interior.png
+          test -s lot31_output/05_cozy_three_seat_bar.png
+          test -s lot31_output/06_upper_floor_dollhouse.png
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          out = Path('lot31_output')
+          manifest = json.loads((out / 'model_manifest.json').read_text())
+          assert manifest['lot_area_sqft'] == 8031.0
+          assert manifest['bar_stools'] == 3
+          for path in sorted(out.iterdir()):
+              print(f'{path.name}: {path.stat().st_size:,} bytes')
+          PY
+
+      - name: Create one downloadable ZIP
+        run: |
+          cd lot31_output
+          zip -9 -r ../Lot31_Realistic_Blender_House_Package.zip .
+          cd ..
+          cp Lot31_Realistic_Blender_House_Package.zip lot31_output/
+
+      - name: Upload complete Blender house package
+        uses: actions/upload-artifact@v4
+        with:
+          name: lot31-realistic-blender-house
+          path: lot31_output/**
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Upload diagnostic log even if the build fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lot31-blender-build-log
+          path: lot31_output/build.log
+          if-no-files-found: ignore
+          retention-days: 7
