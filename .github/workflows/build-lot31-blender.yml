@@ -1,0 +1,158 @@
+name: Build Lot 31 Realistic Blender House
+
+on:
+  push:
+    branches:
+      - lot31-blender-build
+    paths:
+      - 'lot31_blender/**'
+      - '.github/workflows/build-lot31-blender.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lot31-blender-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Blender 5.2 build and interactive export
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+
+    env:
+      BLENDER_VERSION: '5.2.1'
+      LIBGL_ALWAYS_SOFTWARE: '1'
+      MESA_GL_VERSION_OVERRIDE: '4.5'
+
+    steps:
+      - name: Check out project branch
+        uses: actions/checkout@v4
+
+      - name: Extract committed source bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d lot31_blender/source_parts
+          cat lot31_blender/source_parts/source_bundle.b64.* | base64 --decode > /tmp/lot31-source.tar.gz
+          tar -xzf /tmp/lot31-source.tar.gz
+
+      - name: Install headless Blender runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            curl ca-certificates xz-utils zip unzip xvfb \
+            libx11-6 libxext6 libxrender1 libxi6 libxxf86vm1 libxfixes3 \
+            libxkbcommon0 libxrandr2 libxcursor1 libsm6 \
+            libegl1 libgl1 libgl1-mesa-dri libwayland-client0 libwayland-egl1 \
+            libtbb12 libjemalloc2
+
+      - name: Download and verify official Blender
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .blender
+          archive="blender-${BLENDER_VERSION}-linux-x64.tar.xz"
+          primary="https://mirror.blender.org/release/Blender5.2/${archive}"
+          fallback="https://download.blender.org/release/Blender5.2/${archive}"
+          checksum="blender-${BLENDER_VERSION}.sha256"
+          primary_checksum="https://mirror.blender.org/release/Blender5.2/${checksum}"
+          fallback_checksum="https://download.blender.org/release/Blender5.2/${checksum}"
+          if ! curl --fail --location --retry 5 --retry-all-errors --output blender.tar.xz "$primary"; then
+            curl --fail --location --retry 5 --retry-all-errors --output blender.tar.xz "$fallback"
+          fi
+          if ! curl --fail --location --retry 5 --retry-all-errors --output blender.sha256 "$primary_checksum"; then
+            curl --fail --location --retry 5 --retry-all-errors --output blender.sha256 "$fallback_checksum"
+          fi
+          expected="$(awk -v f="$archive" '$2==f || $2==("*" f) {print $1; exit}' blender.sha256)"
+          test -n "$expected"
+          echo "$expected  blender.tar.xz" | sha256sum --check -
+          tar -xf blender.tar.xz -C .blender --strip-components=1
+          ./.blender/blender --version
+
+      - name: Download licensed real 3D assets
+        run: python3 lot31_blender/download_assets.py
+
+      - name: Vendor the offline Three.js viewer runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="lot31_blender/viewer/vendor"
+          mkdir -p "$base/examples/jsm/controls" "$base/examples/jsm/loaders" "$base/examples/jsm/utils"
+          curl --fail --location --retry 5 -o "$base/three.module.js" "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"
+          curl --fail --location --retry 5 -o "$base/examples/jsm/controls/OrbitControls.js" "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/controls/OrbitControls.js"
+          curl --fail --location --retry 5 -o "$base/examples/jsm/controls/PointerLockControls.js" "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/controls/PointerLockControls.js"
+          curl --fail --location --retry 5 -o "$base/examples/jsm/loaders/GLTFLoader.js" "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js"
+          curl --fail --location --retry 5 -o "$base/examples/jsm/loaders/RGBELoader.js" "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/RGBELoader.js"
+          curl --fail --location --retry 5 -o "$base/examples/jsm/utils/BufferGeometryUtils.js" "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/utils/BufferGeometryUtils.js"
+
+      - name: Build the house in Blender and export GLB
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p output
+          xvfb-run -a --server-args="-screen 0 1920x1080x24" \
+            ./.blender/blender -b --factory-startup \
+            -P lot31_blender/build_lot31.py -- \
+            --project-root "$GITHUB_WORKSPACE/lot31_blender" \
+            --output "$GITHUB_WORKSPACE/output"
+
+      - name: Validate required deliverables
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s output/Lot31_Realistic_House.blend
+          test -s output/viewer/Lot31_Realistic_House.glb
+          test -s output/viewer/index.html
+          test -s output/viewer/viewer.js
+          test -s output/BUILD_REPORT.json
+          test "$(stat -c%s output/Lot31_Realistic_House.blend)" -gt 1000000
+          test "$(stat -c%s output/viewer/Lot31_Realistic_House.glb)" -gt 1000000
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('output/BUILD_REPORT.json').read_text())
+          assert report['lot_area_sqft'] == 8031
+          assert report['bar_stools'] == 3
+          assert report['approx_total_sqft'] >= 4000
+          assert len(report['real_assets_imported']) >= 4
+          print(json.dumps(report, indent=2))
+          PY
+
+      - name: Add project source and package everything
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p output/source
+          cp lot31_blender/build_lot31.py output/source/
+          cp lot31_blender/download_assets.py output/source/
+          cp lot31_blender/BUILD_BRIEF.md output/
+          cp lot31_blender/README.md output/README.md
+          cp lot31_blender/README.md output/viewer/README.md
+          (
+            cd output
+            zip -9 -r Lot31_Blender_Realistic_Interactive_Package.zip \
+              Lot31_Realistic_House.blend \
+              viewer \
+              previews \
+              source \
+              README.md \
+              BUILD_BRIEF.md \
+              BUILD_REPORT.json \
+              ASSET_CREDITS.md \
+              asset_license_notices
+          )
+          ls -lah output output/viewer output/previews
+
+      - name: Upload finished Blender package
+        uses: actions/upload-artifact@v4
+        with:
+          name: lot31-blender-realistic-package
+          path: |
+            output/Lot31_Blender_Realistic_Interactive_Package.zip
+            output/BUILD_REPORT.json
+            output/previews/*.png
+          if-no-files-found: error
+          retention-days: 14
