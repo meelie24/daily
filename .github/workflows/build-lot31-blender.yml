@@ -46,6 +46,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import re
+          import textwrap
 
           path = Path('lot31_blender/build_lot31.py')
           text = path.read_text(encoding='utf-8')
@@ -64,14 +65,10 @@ jobs:
           text = text.replace("scene.cycles.samples = 128", "scene.cycles.samples = 8")
           text = text.replace("scene.cycles.samples = 64", "scene.cycles.samples = 8")
 
-          # Some real Khronos assets contain KHR_materials_variants metadata.
-          # Blender 5.2 imported the models correctly but one asset retained a
-          # stale variant index (3 with only three entries), causing the GLB
-          # exporter to crash. Material variants are not needed for this house,
-          # so clear only that optional metadata. Meshes, textures, materials,
-          # furniture, cars and plants remain untouched.
+          # One imported real asset retains stale KHR_materials_variants data.
+          # Clear only that optional metadata immediately before the GLB export.
           marker = 'bpy.ops.export_scene.gltf('
-          sanitizer = '''
+          sanitizer = textwrap.dedent('''\
           print('[LOT31] Sanitizing optional glTF material-variant metadata')
           try:
               addon = bpy.context.preferences.addons.get('io_scene_gltf2')
@@ -105,11 +102,24 @@ jobs:
                               variant_collection.remove(len(variant_collection) - 1)
                       except Exception as exc:
                           print(f'[LOT31] Could not clear scene variants: {exc}')
-          '''
-          if marker not in text:
-              raise SystemExit('GLB export call was not found in build_lot31.py')
-          text = text.replace(marker, sanitizer + '\n' + marker, 1)
+          ''').rstrip()
 
+          marker_index = text.find(marker)
+          if marker_index < 0:
+              raise SystemExit('GLB export call was not found in build_lot31.py')
+          line_start = text.rfind('\n', 0, marker_index) + 1
+          export_indent = text[line_start:marker_index]
+          if export_indent.strip():
+              raise SystemExit(f'Unexpected text before GLB export call: {export_indent!r}')
+          indented_sanitizer = '\n'.join(
+              export_indent + line if line else ''
+              for line in sanitizer.splitlines()
+          )
+          text = text[:line_start] + indented_sanitizer + '\n' + text[line_start:]
+
+          # Compile before launching Blender so indentation/syntax mistakes fail
+          # here rather than masquerading as a successful Blender process.
+          compile(text, str(path), 'exec')
           path.write_text(text, encoding='utf-8')
           PY
 
