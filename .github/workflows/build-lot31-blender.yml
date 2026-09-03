@@ -39,7 +39,7 @@ jobs:
           tar -xzf /tmp/lot31-source.tar.gz
           test -s lot31_blender/build_lot31.py
 
-      - name: Disable slow CPU preview renders in CI
+      - name: Prepare fast and stable interactive export
         shell: bash
         run: |
           set -euo pipefail
@@ -50,10 +50,8 @@ jobs:
           path = Path('lot31_blender/build_lot31.py')
           text = path.read_text(encoding='utf-8')
 
-          # The interactive .blend and .glb are the actual deliverables. The
-          # original script also rendered several 1080p previews on a CPU-only
-          # runner, which can consume most of an hour. Keep scene construction,
-          # real assets, PBR materials and export; skip only still-image renders.
+          # The interactive .blend and .glb are the actual deliverables. Skip
+          # CPU-only still renders in CI so the working model exports first.
           text, count = re.subn(
               r'bpy\.ops\.render\.render\s*\([^\n]*\)',
               "print('[LOT31] Still preview skipped in CI; exporting interactive model first')",
@@ -61,11 +59,56 @@ jobs:
           )
           print(f'Disabled {count} Blender still-render call(s).')
 
-          # Extra guardrails in case render settings are configured elsewhere.
           text = text.replace("scene.render.resolution_x = 1920", "scene.render.resolution_x = 640")
           text = text.replace("scene.render.resolution_y = 1080", "scene.render.resolution_y = 360")
           text = text.replace("scene.cycles.samples = 128", "scene.cycles.samples = 8")
           text = text.replace("scene.cycles.samples = 64", "scene.cycles.samples = 8")
+
+          # Some real Khronos assets contain KHR_materials_variants metadata.
+          # Blender 5.2 imported the models correctly but one asset retained a
+          # stale variant index (3 with only three entries), causing the GLB
+          # exporter to crash. Material variants are not needed for this house,
+          # so clear only that optional metadata. Meshes, textures, materials,
+          # furniture, cars and plants remain untouched.
+          marker = 'bpy.ops.export_scene.gltf('
+          sanitizer = '''
+          print('[LOT31] Sanitizing optional glTF material-variant metadata')
+          try:
+              addon = bpy.context.preferences.addons.get('io_scene_gltf2')
+              if addon is not None and hasattr(addon.preferences, 'KHR_materials_variants_ui'):
+                  addon.preferences.KHR_materials_variants_ui = False
+          except Exception as exc:
+              print(f'[LOT31] Variant preference warning: {exc}')
+
+          for mesh_data in bpy.data.meshes:
+              for attr_name in ('gltf2_variant_mesh_data', 'gltf2_variant_default_materials'):
+                  variant_collection = getattr(mesh_data, attr_name, None)
+                  if variant_collection is None:
+                      continue
+                  try:
+                      variant_collection.clear()
+                  except Exception:
+                      try:
+                          while len(variant_collection):
+                              variant_collection.remove(len(variant_collection) - 1)
+                      except Exception as exc:
+                          print(f'[LOT31] Could not clear {mesh_data.name}.{attr_name}: {exc}')
+
+          for scene_data in bpy.data.scenes:
+              variant_collection = getattr(scene_data, 'gltf2_KHR_materials_variants_variants', None)
+              if variant_collection is not None:
+                  try:
+                      variant_collection.clear()
+                  except Exception:
+                      try:
+                          while len(variant_collection):
+                              variant_collection.remove(len(variant_collection) - 1)
+                      except Exception as exc:
+                          print(f'[LOT31] Could not clear scene variants: {exc}')
+          '''
+          if marker not in text:
+              raise SystemExit('GLB export call was not found in build_lot31.py')
+          text = text.replace(marker, sanitizer + '\n' + marker, 1)
 
           path.write_text(text, encoding='utf-8')
           PY
@@ -131,6 +174,8 @@ jobs:
           test -s output/viewer/index.html
           test -s output/viewer/viewer.js
           test -s output/BUILD_REPORT.json
+          test "$(stat -c%s output/Lot31_Realistic_House.blend)" -gt 1000000
+          test "$(stat -c%s output/viewer/Lot31_Realistic_House.glb)" -gt 1000000
           python3 - <<'PY'
           import json
           from pathlib import Path
