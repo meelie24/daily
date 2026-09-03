@@ -151,17 +151,24 @@ jobs:
       - name: Download licensed real 3D assets
         run: python3 lot31_blender/download_assets.py
 
-      - name: Vendor offline viewer runtime
+      - name: Vendor complete offline viewer runtime
         shell: bash
         run: |
           set -euo pipefail
           base="lot31_blender/viewer/vendor"
           mkdir -p "$base/examples/jsm/controls" "$base/examples/jsm/loaders" "$base/examples/jsm/utils"
+
+          # r180 splits the WebGL entry point across three.module.js and
+          # three.core.js. Both files are required for a genuinely offline
+          # viewer. RGBELoader is now a wrapper around HDRLoader, so that
+          # dependency must also be included.
           curl --fail --location --retry 5 -o "$base/three.module.js" "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"
+          curl --fail --location --retry 5 -o "$base/three.core.js" "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.core.js"
           curl --fail --location --retry 5 -o "$base/examples/jsm/controls/OrbitControls.js" "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/controls/OrbitControls.js"
           curl --fail --location --retry 5 -o "$base/examples/jsm/controls/PointerLockControls.js" "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/controls/PointerLockControls.js"
           curl --fail --location --retry 5 -o "$base/examples/jsm/loaders/GLTFLoader.js" "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js"
           curl --fail --location --retry 5 -o "$base/examples/jsm/loaders/RGBELoader.js" "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/RGBELoader.js"
+          curl --fail --location --retry 5 -o "$base/examples/jsm/loaders/HDRLoader.js" "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/HDRLoader.js"
           curl --fail --location --retry 5 -o "$base/examples/jsm/utils/BufferGeometryUtils.js" "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/utils/BufferGeometryUtils.js"
 
       - name: Build house in Blender and export GLB
@@ -175,7 +182,7 @@ jobs:
             --project-root "$GITHUB_WORKSPACE/lot31_blender" \
             --output "$GITHUB_WORKSPACE/output"
 
-      - name: Validate deliverables
+      - name: Validate model and complete browser dependency graph
         shell: bash
         run: |
           set -euo pipefail
@@ -183,18 +190,63 @@ jobs:
           test -s output/viewer/Lot31_Realistic_House.glb
           test -s output/viewer/index.html
           test -s output/viewer/viewer.js
+          test -s output/viewer/vendor/three.module.js
+          test -s output/viewer/vendor/three.core.js
+          test -s output/viewer/vendor/examples/jsm/loaders/GLTFLoader.js
+          test -s output/viewer/vendor/examples/jsm/loaders/RGBELoader.js
+          test -s output/viewer/vendor/examples/jsm/loaders/HDRLoader.js
           test -s output/BUILD_REPORT.json
           test "$(stat -c%s output/Lot31_Realistic_House.blend)" -gt 1000000
           test "$(stat -c%s output/viewer/Lot31_Realistic_House.glb)" -gt 1000000
+
+          node --check output/viewer/viewer.js
+
           python3 - <<'PY'
           import json
+          import re
           from pathlib import Path
+
           report = json.loads(Path('output/BUILD_REPORT.json').read_text())
           assert report['lot_area_sqft'] == 8031
           assert report['bar_stools'] == 3
           assert report['approx_total_sqft'] >= 4000
           assert len(report['real_assets_imported']) >= 4
+
+          root = Path('output/viewer').resolve()
+          entry = root / 'viewer.js'
+          visited = set()
+          missing = []
+
+          def resolve_import(specifier, source):
+              if specifier == 'three':
+                  return root / 'vendor' / 'three.module.js'
+              if specifier.startswith('three/addons/'):
+                  return root / 'vendor' / 'examples' / 'jsm' / specifier[len('three/addons/'):]
+              if specifier.startswith('./') or specifier.startswith('../'):
+                  return (source.parent / specifier).resolve()
+              return None
+
+          def walk(source):
+              source = source.resolve()
+              if source in visited:
+                  return
+              visited.add(source)
+              if not source.exists():
+                  missing.append(str(source))
+                  return
+              text = source.read_text(encoding='utf-8')
+              specs = re.findall(r'(?:from\s+|import\s*)[\'\"]([^\'\"]+)[\'\"]', text)
+              for specifier in specs:
+                  target = resolve_import(specifier, source)
+                  if target is not None:
+                      walk(target)
+
+          walk(entry)
+          if missing:
+              raise SystemExit('Missing browser modules:\n' + '\n'.join(sorted(set(missing))))
+
           print(json.dumps(report, indent=2))
+          print(f'Validated {len(visited)} JavaScript modules with no missing imports.')
           PY
 
       - name: Package model, viewer and source
@@ -220,12 +272,12 @@ jobs:
               ASSET_CREDITS.md \
               asset_license_notices
           )
-          ls -lah output output/viewer
+          ls -lah output output/viewer output/viewer/vendor output/viewer/vendor/examples/jsm/loaders
 
       - name: Upload finished Blender package
         uses: actions/upload-artifact@v4
         with:
-          name: lot31-blender-realistic-package
+          name: lot31-blender-realistic-package-fixed-viewer
           path: |
             output/Lot31_Blender_Realistic_Interactive_Package.zip
             output/BUILD_REPORT.json
